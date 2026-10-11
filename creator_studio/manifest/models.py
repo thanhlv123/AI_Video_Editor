@@ -5,6 +5,7 @@ from enum import Enum
 from uuid import uuid4
 from .execution import ExecutionRecord
 from .content import ContentRecord
+from .semantic import SemanticState
 
 SCHEMA_VERSION = 2
 
@@ -241,3 +242,4 @@ class ProjectManifest:
     timeline: list[TimelineReference] = field(default_factory=list)
     processing: list[ProcessingState] = field(default_factory=list)
     snapshots: list[SnapshotMetadata] = field(default_factory=list)
+    semantic: SemanticState = field(default_factory=SemanticState)

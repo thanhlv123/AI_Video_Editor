@@ -50,3 +50,24 @@ InputSource.rights is an ingest declaration and never upgrades media rights.
 A permissive ingest declaration linked to REFERENCE_ONLY or UNKNOWN media is a
 validation conflict, even when the media is not selected. Changing canonical
 provenance requires a future explicit authorization workflow, not implemented here.
+
+M64 adds `semantic: SemanticState` without changing schema version 2. Migration
+supplies empty source_revisions/documents/selection only when semantic is absent;
+present malformed data fails strict decoding. Persistent validation stays in
+manifest/semantic_validation.py and never imports semantic runtime engines.
+
+Retained SemanticSourceRevision records are historical evidence, deduplicated by
+logical content ID and M63 revision signature. They preserve the exact originating
+ContentRecord and an exact-record fingerprint; current content remains canonical.
+SemanticDocuments retain revision-bound blocks, StoryUnits and exact code-point
+source spans. Historical staleness is derived, not persisted as mutable state.
+`eligible_active_document(manifest, required_spec)` returns None for stale output
+without changing selection or history. REFERENCE_ANALYSIS cannot be selected as
+creator output. Full semantic validation also checks historical document integrity.
+
+Semantic IDs are deterministic type-prefixed signatures. Reviews are excluded
+from generated analysis identity but included in exact output fingerprints.
+Exact Unicode fingerprints ASCII-escape JSON before calling M61 signature().
+Future Qt/JavaScript clients must convert UTF-16 positions to Python code points;
+source spans never use bytes, graphemes or UTF-16 offsets. See semantic/README.md
+for the offline baseline and stage contract.

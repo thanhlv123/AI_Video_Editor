@@ -5,3 +5,5 @@ from .validation import validate, require_valid, ManifestValidationError, Valida
 from .signatures import signature, dependency_signature
 from .snapshots import snapshot_metadata
 from .migrations import UnsupportedSchemaError
+from .semantic import SemanticState, SemanticDocument, SemanticSourceRevision
+from .semantic_validation import eligible_active_document
