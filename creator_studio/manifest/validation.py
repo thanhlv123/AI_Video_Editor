@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 from .codec import check_typed
 from .models import ProjectManifest, Rights, MediaKind, TrackKind, SCHEMA_VERSION
+from .execution import execution_errors
 
 
 @dataclass(frozen=True)
@@ -189,6 +190,16 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
             visited.add(parent.id)
             parent = snapshot_map.get(parent.parent_snapshot_id)
     for state in manifest.processing:
+        if state.execution is not None:
+            for message in execution_errors(state.execution):
+                error("processing.execution", "execution", message)
+            expected = {"ready": "pending", "blocked": "pending", "skipped": "succeeded"}.get(state.execution.status.value, state.execution.status.value)
+            if state.status.value != expected:
+                error("processing.execution", "execution_consistency", "Processing/execution status mismatch")
+            if state.dependency_signature is not None and state.dependency_signature != state.execution.dependency_signature:
+                error("processing.execution", "execution_consistency", "Processing/execution signature mismatch")
+            if state.execution.stage_id != state.stage:
+                error("processing.execution", "execution", "Stage identity mismatch")
         if state.dependency_signature is not None and not re.fullmatch(r"[0-9a-f]{64}", state.dependency_signature):
             error("processing", "signature", "Expected SHA-256 signature")
         for d in state.diagnostics:

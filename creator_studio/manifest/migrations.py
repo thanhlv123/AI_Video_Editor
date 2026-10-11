@@ -13,4 +13,9 @@ def migrate_document(document: dict) -> dict:
     if document["schema_version"] != SCHEMA_VERSION:
         raise UnsupportedSchemaError("Unsupported manifest schema version; no migration registered")
     # Future sequential V2 -> V3 transformations belong here, before strict decoding.
-    return deepcopy(document)
+    result = deepcopy(document)
+    # Additive V2 extension: old processing records have no execution metadata.
+    for state in result.get("processing", []):
+        if isinstance(state, dict):
+            state.setdefault("execution", None)
+    return result

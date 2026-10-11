@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
+from .execution import ExecutionRecord
 
 SCHEMA_VERSION = 2
 
@@ -204,6 +205,7 @@ class ProcessingState:
     status: Status = Status.PENDING
     dependency_signature: str | None = None
     diagnostics: list[Diagnostic] = field(default_factory=list)
+    execution: ExecutionRecord | None = None
 
 
 @dataclass(frozen=True)
