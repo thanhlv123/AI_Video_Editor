@@ -7,6 +7,8 @@ from .execution import ExecutionRecord
 from .content import ContentRecord
 from .semantic import SemanticState
 from .visual import VisualState
+from .rights import Rights
+from .retrieval import RetrievalState
 
 SCHEMA_VERSION = 2
 
@@ -25,14 +27,6 @@ class Status(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
-
-
-class Rights(str, Enum):
-    OWNED = "OWNED"
-    LICENSED = "LICENSED"
-    PUBLIC_DOMAIN = "PUBLIC_DOMAIN"
-    REFERENCE_ONLY = "REFERENCE_ONLY"
-    UNKNOWN = "UNKNOWN"
 
 
 class InputKind(str, Enum):
@@ -245,3 +239,4 @@ class ProjectManifest:
     snapshots: list[SnapshotMetadata] = field(default_factory=list)
     semantic: SemanticState = field(default_factory=SemanticState)
     visual_planning: VisualState = field(default_factory=VisualState)
+    retrieval: RetrievalState = field(default_factory=RetrievalState)

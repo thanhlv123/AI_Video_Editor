@@ -71,3 +71,18 @@ Exact Unicode fingerprints ASCII-escape JSON before calling M61 signature().
 Future Qt/JavaScript clients must convert UTF-16 positions to Python code points;
 source spans never use bytes, graphemes or UTF-16 offsets. See semantic/README.md
 for the offline baseline and stage contract.
+
+# M66 additive retrieval extension
+
+`ProjectManifest.retrieval` stores bounded discovery history and an optional active
+retrieval ID. Candidates are not canonical `MediaReference` objects. No retrieval
+operation changes `media`, `scenes`, or upstream reviewed truth. Rights is now
+defined once in `rights.py` and re-exported from `models.py`; values and JSON
+encoding are unchanged.
+
+Schema version remains 2. Migration inserts an empty retrieval state only when
+the field is absent. Present null, partial, malformed or unknown-field payloads
+fail strict decoding/validation. Historical structure/signatures are validated
+separately from current eligibility; review and upstream changes do not silently
+reactivate runs or remove history. See `creator_studio/retrieval/README.md` for
+limits, signatures, provider policy and the two exact stage artifacts.

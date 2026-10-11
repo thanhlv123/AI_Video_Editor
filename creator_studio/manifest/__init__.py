@@ -7,3 +7,6 @@ from .snapshots import snapshot_metadata
 from .migrations import UnsupportedSchemaError
 from .semantic import SemanticState, SemanticDocument, SemanticSourceRevision
 from .semantic_validation import eligible_active_document
+from .rights import Rights
+from .retrieval import RetrievalState, RetrievalRun, CandidateDescriptor
+from .retrieval_validation import eligible_active_retrieval
