@@ -2,9 +2,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 import re
+import unicodedata
 from .codec import check_typed
 from .models import ProjectManifest, Rights, MediaKind, TrackKind, SCHEMA_VERSION
 from .execution import execution_errors
+from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,39 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("project_name", "required", "Project name required")
     if manifest.content.revision < 0:
         error("content.revision", "revision", "Revision cannot be negative")
+    records = {}
+    for record in manifest.content.records:
+        path = "content.records"
+        identity(record.content_id, path + ".content_id")
+        records[record.content_id] = record
+        original = record.original_text.removeprefix("\ufeff")
+        expected = unicodedata.normalize("NFC", original.replace("\r\n", "\n").replace("\r", "\n")).rstrip("\n")
+        if (record.normalization_version != "1" or not record.normalized_text.strip()
+                or expected != record.normalized_text
+                or any((unicodedata.category(c) == "Cc" and c not in "\t\r\n")
+                       or unicodedata.category(c) == "Cs" for c in original)):
+            error(path, "content_normalization", "Invalid normalized content")
+        if record.language is not None and not re.fullmatch(r"[a-z]{2,8}(?:-[a-z0-9]{1,8})*", record.language):
+            error(path, "content_language", "Invalid normalized language")
+        try:
+            valid_signature = record.revision_signature == revision_signature(record)
+        except (ValueError, UnicodeError):
+            valid_signature = False
+        if not valid_signature:
+            error(path, "content_signature", "Invalid content revision signature")
+        if record.source_type == SourceType.REFERENCE_TEXT and record.provenance != ContentProvenance.REFERENCE_ONLY:
+            error(path, "content_provenance", "Reference text must remain reference only")
+        for diagnostic in record.diagnostics:
+            if diagnostic.code not in {"reference_content_not_canonical"}:
+                error(path, "content_diagnostic", "Unsupported ingest diagnostic")
+    canonical_id = manifest.content.canonical_content_id
+    if canonical_id is not None:
+        record = records.get(canonical_id)
+        if record is None or not canonical_eligible(record):
+            error("content.canonical_content_id", "content_reference", "Eligible canonical record required")
+        elif (manifest.content.script != record.normalized_text
+              or manifest.content.source_language != (record.language or "und")):
+            error("content.script", "content_consistency", "Canonical script and language must match record")
     scenes = {s.id: s for s in manifest.scenes}
     media = {m.id: m for m in manifest.media}
     allowed = {Rights.OWNED, Rights.LICENSED, Rights.PUBLIC_DOMAIN}

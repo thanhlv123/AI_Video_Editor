@@ -14,6 +14,10 @@ def migrate_document(document: dict) -> dict:
         raise UnsupportedSchemaError("Unsupported manifest schema version; no migration registered")
     # Future sequential V2 -> V3 transformations belong here, before strict decoding.
     result = deepcopy(document)
+    # M63 additive defaults: preserve all older script and execution data.
+    if isinstance(result.get("content"), dict):
+        result["content"].setdefault("records", [])
+        result["content"].setdefault("canonical_content_id", None)
     # Additive V2 extension: old processing records have no execution metadata.
     for state in result.get("processing", []):
         if isinstance(state, dict):

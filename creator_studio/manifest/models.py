@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
 from .execution import ExecutionRecord
+from .content import ContentRecord
 
 SCHEMA_VERSION = 2
 
@@ -90,6 +91,8 @@ class Content:
     source_language: str = "en"
     review_language: str = "vi"
     revision: int = 0
+    records: list[ContentRecord] = field(default_factory=list)
+    canonical_content_id: str | None = None
 
 
 @dataclass

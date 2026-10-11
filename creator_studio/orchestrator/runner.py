@@ -114,6 +114,12 @@ class ProjectOrchestrator:
                                 and previous.stage_version == stage.stage_version
                                 and previous.dependency_signature == result.dependency_signature
                                 and self.artifact_validator.valid(deepcopy(manifest), deepcopy(previous.artifacts)))
+                    if reusable and callable(getattr(stage, "validate_reuse", None)):
+                        # Optional domain output check supplements generic artifact validation.
+                        try:
+                            reusable = stage.validate_reuse(deepcopy(manifest), deepcopy(previous))
+                        finally:
+                            self.graph.preflight()
                     self.graph.preflight()
                     if reusable:
                         result = deepcopy(previous)
