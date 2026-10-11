@@ -1,0 +1,95 @@
+{
+    "version": 2,
+    "providers": [
+        {
+            "id": "kie_ai",
+            "name": "KIE AI",
+            "env_var": "KIE_API_KEY",
+            "base_url": "",
+            "model": "gpt-6-luna",
+            "enabled": true
+        },
+        {
+            "id": "pexels",
+            "name": "Pexels",
+            "env_var": "PEXELS_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": true
+        },
+        {
+            "id": "pixabay",
+            "name": "Pixabay",
+            "env_var": "PIXABAY_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": true
+        },
+        {
+            "id": "storyblocks",
+            "name": "Storyblocks",
+            "env_var": "",
+            "base_url": "https://api.storyblocks.com",
+            "model": "",
+            "enabled": false,
+            "fields": [
+                {
+                    "key": "public_key",
+                    "label": "Public Key",
+                    "env_var": "STORYBLOCKS_PUBLIC_KEY",
+                    "required": true
+                },
+                {
+                    "key": "secret_key",
+                    "label": "Secret Key",
+                    "env_var": "STORYBLOCKS_SECRET_KEY",
+                    "required": true
+                },
+                {
+                    "key": "project_id",
+                    "label": "Project ID",
+                    "env_var": "STORYBLOCKS_PROJECT_ID",
+                    "required": true
+                },
+                {
+                    "key": "user_id",
+                    "label": "User ID",
+                    "env_var": "STORYBLOCKS_USER_ID",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "id": "openai",
+            "name": "OpenAI",
+            "env_var": "OPENAI_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": false
+        },
+        {
+            "id": "anthropic",
+            "name": "Anthropic",
+            "env_var": "ANTHROPIC_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": false
+        },
+        {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "env_var": "GEMINI_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": false
+        },
+        {
+            "id": "deepseek",
+            "name": "DeepSeek",
+            "env_var": "DEEPSEEK_API_KEY",
+            "base_url": "",
+            "model": "",
+            "enabled": false
+        }
+    ]
+}

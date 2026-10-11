@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:02,500
+Life in rural Vietnam is simple and peaceful.
+
+2
+00:00:02,500 --> 00:00:05,000
+Every morning begins very early.
+
+3
+00:00:05,000 --> 00:00:07,500
+People prepare for another day of work.
+
+4
+00:00:07,500 --> 00:00:10,000
+Some families work in the fields.
+
+5
+00:00:10,000 --> 00:00:12,500
+Others raise animals near their homes.
+
+6
+00:00:12,500 --> 00:00:15,000
+These ordinary moments are part of everyday life.
