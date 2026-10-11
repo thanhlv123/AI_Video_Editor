@@ -16,6 +16,7 @@ def migrate_document(document: dict) -> dict:
     result = deepcopy(document)
     result.setdefault("semantic", {"source_revisions": [], "documents": [],
                                    "active_creator_document_id": None})
+    result.setdefault("visual_planning", {"plans": [], "active_creator_plan_id": None})
     # M63 additive defaults: preserve all older script and execution data.
     if isinstance(result.get("content"), dict):
         result["content"].setdefault("records", [])

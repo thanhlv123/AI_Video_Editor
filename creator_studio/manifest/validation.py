@@ -7,6 +7,7 @@ from .codec import check_typed
 from .models import ProjectManifest, Rights, MediaKind, TrackKind, SCHEMA_VERSION
 from .execution import execution_errors
 from .semantic_validation import semantic_errors
+from .visual_validation import visual_errors
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -243,6 +244,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
                 error("processing.diagnostics", "diagnostic", "Use controlled diagnostic codes, never raw payloads")
     for code in semantic_errors(manifest.semantic):
         error("semantic", code, "Semantic persistent contract is invalid.")
+    for code in visual_errors(manifest.visual_planning, manifest.semantic):
+        error("visual_planning", code, "Visual persistent contract is invalid.")
     return errors
 
 
