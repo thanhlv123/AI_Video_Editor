@@ -1,6 +1,7 @@
 """Explicit migration boundary. Legacy formats and future versions are rejected."""
 from copy import deepcopy
 from .models import SCHEMA_VERSION
+from .placement_timing_validation import preflight_document as placement_preflight_document
 
 
 class UnsupportedSchemaError(ValueError):
@@ -13,6 +14,7 @@ def migrate_document(document: dict) -> dict:
     if document["schema_version"] != SCHEMA_VERSION:
         raise UnsupportedSchemaError("Unsupported manifest schema version; no migration registered")
     # Future sequential V2 -> V3 transformations belong here, before strict decoding.
+    placement_preflight_document(document.get("placement_timing"))
     result = deepcopy(document)
     result.setdefault("semantic", {"source_revisions": [], "documents": [],
                                    "active_creator_document_id": None})
@@ -22,6 +24,7 @@ def migrate_document(document: dict) -> dict:
     result.setdefault("acquisition", {"runs": [], "materializations": [], "assets": [],
                                       "active_creator_acquisition_id": None})
     result.setdefault("editing", {"plans": [], "active_creator_edit_plan_id": None})
+    result.setdefault("placement_timing", {"plans": [], "active_placement_timing_plan_id": None})
     result.setdefault("voice_timing", {"assets": [], "revisions": [], "runs": [],
         "active_narration_revision_id": None, "active_alignment_run_id": None})
     # M63 additive defaults: preserve all older script and execution data.

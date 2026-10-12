@@ -20,3 +20,8 @@ from .editing import EditSpec, EditPlacement, EditPlan, EditingState, TimingStat
 from .voice_timing import (VoiceTimingState, NarrationAsset, NarrationRevision,
     AudioInspectionEvidence, AlignmentSpec, SourceBinding, TimedUnit,
     SourceOmission, AlignmentRun, AcceptanceReceipt, NarrationOrigin, MappingStatus)
+from .placement_timing import (PlacementTimingSpec, PlacementTimingLineage,
+    PlacementAllocationDeclaration, PlacementBoundaryDeclaration, PlacementBoundaryEvidence,
+    PlacementTimingEntry, PlacementTimingPlan, PlacementTimingState,
+    PlacementTimingAcceptanceReceipt, PlacementTimingOutcome, BoundarySide, BoundaryKind,
+    TimingDiagnostic)

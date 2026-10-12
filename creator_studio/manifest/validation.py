@@ -13,6 +13,7 @@ from .selection_validation import selection_errors
 from .acquisition_validation import acquisition_errors
 from .editing_validation import editing_errors
 from .voice_timing_validation import voice_timing_errors, preflight_history
+from .placement_timing_validation import placement_timing_errors, preflight_history as placement_preflight
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -35,6 +36,10 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
     def error(path, code, message):
         errors.append(ValidationError(path, code, message))
 
+    try:
+        placement_preflight(getattr(manifest, "placement_timing", None))
+    except ValueError:
+        return [ValidationError("placement_timing", "placement_timing_invalid", "Invalid retained placement timing contract")]
     try:
         preflight_history(getattr(manifest, "voice_timing", None))
     except ValueError:
@@ -265,6 +270,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("acquisition", code, "Acquisition persistent contract is invalid.")
     for code in voice_timing_errors(manifest):
         error("voice_timing", code, "Invalid retained voice timing contract")
+    for code in placement_timing_errors(manifest):
+        error("placement_timing", code, "Invalid retained placement timing contract")
     return errors
 
 

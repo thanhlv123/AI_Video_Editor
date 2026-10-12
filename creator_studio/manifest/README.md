@@ -134,3 +134,17 @@ Migration fabricates no audio, timing or acceptance. Historical validation is
 filesystem-free; current audio usability rehashes bytes separately. Legacy Voice,
 scenes, subtitles, media, timeline and M69 EditPlans confer no M70 authority.
 See `../voice_timing/README.md` for trust boundaries and current eligibility.
+
+# M71 placement timing
+
+Schema remains **2**. `placement_timing` defaults to an empty
+`PlacementTimingState`. Migration supplies this complete empty field only when
+absent; present null, partial, malformed or unknown-field contracts fail strict
+decoding. No timing authority is fabricated.
+
+The separate retained domain contains specs, compact source/semantic lineage,
+ordered exact source allocations and explicit microsecond boundaries, per-side
+evidence, ordered entries and one optional plan-level acceptance receipt.
+Persisted collections use lists; runtime policy requests use frozen scalar
+projections. Completeness and current eligibility are observations, not mutable
+manifest truth. See [M71 contracts](../placement_timing/README.md).
