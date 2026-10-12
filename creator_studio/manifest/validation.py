@@ -11,6 +11,7 @@ from .visual_validation import visual_errors
 from .retrieval_validation import retrieval_errors
 from .selection_validation import selection_errors
 from .acquisition_validation import acquisition_errors
+from .editing_validation import editing_errors
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -253,6 +254,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("retrieval", code, "Retrieval persistent contract is invalid.")
     for code in selection_errors(manifest.selection, manifest.retrieval, manifest.visual_planning):
         error("selection", code, "Selection persistent contract is invalid.")
+    for code in editing_errors(manifest):
+        error("editing", code, "Invalid retained editing contract")
     for code in acquisition_errors(manifest):
         error("acquisition", code, "Acquisition persistent contract is invalid.")
     return errors

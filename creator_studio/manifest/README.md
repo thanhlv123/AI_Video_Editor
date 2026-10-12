@@ -111,3 +111,15 @@ Selection never authorizes rights or creates canonical MediaReference objects.
 Historical validity is independent of active pointers; current eligibility and
 effective reviewed output are explicit pure projections. See selection/README.md
 for hard-evidence policy, protected replacement, bounds and stage contracts.
+
+
+## M69 editing extension (schema 2)
+
+`editing: EditingState` stores bounded deterministic EditPlans with ordered
+EditPlacements, closed EditSpec, retained acquisition/upstream signatures, and only
+`TimingState.UNRESOLVED`. Missing editing in older schema-2 documents defaults to
+empty history and no active pointer; malformed present editing fails strict decoding.
+Historical validation reconstructs retained lineage without filesystem access or
+current-eligibility calls. Current usability and reuse belong to the isolated
+`creator_studio.editing` runtime. Canonical media and timeline remain independent.
+See `../editing/README.md` for eligibility, artifact, callback, and deferred boundaries.

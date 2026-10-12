@@ -11,6 +11,7 @@ from .rights import Rights
 from .retrieval import RetrievalState
 from .selection import SelectionState
 from .acquisition import AcquisitionState
+from .editing import EditingState
 
 SCHEMA_VERSION = 2
 
@@ -244,3 +245,4 @@ class ProjectManifest:
     retrieval: RetrievalState = field(default_factory=RetrievalState)
     selection: SelectionState = field(default_factory=SelectionState)
     acquisition: AcquisitionState = field(default_factory=AcquisitionState)
+    editing: EditingState = field(default_factory=EditingState)
