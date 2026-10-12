@@ -17,3 +17,6 @@ from .acquisition import (AcquisitionSpec, AcquisitionProviderSpec, InspectionFa
     MaterializedAsset, MaterializationRecord, ShotAcquisition, AcquisitionRun, AcquisitionState)
 
 from .editing import EditSpec, EditPlacement, EditPlan, EditingState, TimingState
+from .voice_timing import (VoiceTimingState, NarrationAsset, NarrationRevision,
+    AudioInspectionEvidence, AlignmentSpec, SourceBinding, TimedUnit,
+    SourceOmission, AlignmentRun, AcceptanceReceipt, NarrationOrigin, MappingStatus)

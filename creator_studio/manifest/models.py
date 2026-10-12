@@ -12,6 +12,7 @@ from .retrieval import RetrievalState
 from .selection import SelectionState
 from .acquisition import AcquisitionState
 from .editing import EditingState
+from .voice_timing import VoiceTimingState
 
 SCHEMA_VERSION = 2
 
@@ -246,3 +247,4 @@ class ProjectManifest:
     selection: SelectionState = field(default_factory=SelectionState)
     acquisition: AcquisitionState = field(default_factory=AcquisitionState)
     editing: EditingState = field(default_factory=EditingState)
+    voice_timing: VoiceTimingState = field(default_factory=VoiceTimingState)

@@ -123,3 +123,14 @@ Historical validation reconstructs retained lineage without filesystem access or
 current-eligibility calls. Current usability and reuse belong to the isolated
 `creator_studio.editing` runtime. Canonical media and timeline remain independent.
 See `../editing/README.md` for eligibility, artifact, callback, and deferred boundaries.
+
+## M70 voice timing extension (schema 2)
+
+`voice_timing: VoiceTimingState` adds bounded narration byte identities, logical
+revisions, strict PCM_WAV_V1 inspection, semantic source spans, accepted lexical
+microsecond timing and receipts, with explicit active narration/alignment pointers.
+Missing state defaults to empty; malformed present state and unknown fields fail.
+Migration fabricates no audio, timing or acceptance. Historical validation is
+filesystem-free; current audio usability rehashes bytes separately. Legacy Voice,
+scenes, subtitles, media, timeline and M69 EditPlans confer no M70 authority.
+See `../voice_timing/README.md` for trust boundaries and current eligibility.

@@ -22,6 +22,8 @@ def migrate_document(document: dict) -> dict:
     result.setdefault("acquisition", {"runs": [], "materializations": [], "assets": [],
                                       "active_creator_acquisition_id": None})
     result.setdefault("editing", {"plans": [], "active_creator_edit_plan_id": None})
+    result.setdefault("voice_timing", {"assets": [], "revisions": [], "runs": [],
+        "active_narration_revision_id": None, "active_alignment_run_id": None})
     # M63 additive defaults: preserve all older script and execution data.
     if isinstance(result.get("content"), dict):
         result["content"].setdefault("records", [])

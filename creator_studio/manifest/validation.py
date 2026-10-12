@@ -12,6 +12,7 @@ from .retrieval_validation import retrieval_errors
 from .selection_validation import selection_errors
 from .acquisition_validation import acquisition_errors
 from .editing_validation import editing_errors
+from .voice_timing_validation import voice_timing_errors, preflight_history
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -34,6 +35,10 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
     def error(path, code, message):
         errors.append(ValidationError(path, code, message))
 
+    try:
+        preflight_history(getattr(manifest, "voice_timing", None))
+    except ValueError:
+        return [ValidationError("voice_timing", "voice_timing_invalid", "Invalid retained voice timing contract")]
     try:
         check_typed(ProjectManifest, manifest)
     except (ValueError, TypeError, AttributeError) as exc:
@@ -258,6 +263,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("editing", code, "Invalid retained editing contract")
     for code in acquisition_errors(manifest):
         error("acquisition", code, "Acquisition persistent contract is invalid.")
+    for code in voice_timing_errors(manifest):
+        error("voice_timing", code, "Invalid retained voice timing contract")
     return errors
 
 
