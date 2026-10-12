@@ -27,3 +27,7 @@ from .placement_timing import (PlacementTimingSpec, PlacementTimingLineage,
     TimingDiagnostic)
 from .render_timeline import (RenderTimelineSpec, RenderTimelineEntry, RenderTimelinePlan,
     RenderTimelineState, RenderTimelineOutcome, SourceUsage, RenderDiagnostic)
+from .render_preparation import (OutputProfile, RenderPreparationSpec,
+    RenderPreparationEntryAssessment, RenderPreparationPlan, RenderPreparationState,
+    RenderTimelineBinding, NarrationBinding, UncoveredInterval, PreparationPolicy,
+    PreparationRequirement, PreparationConclusion)

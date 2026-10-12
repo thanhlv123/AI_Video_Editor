@@ -148,3 +148,13 @@ evidence, ordered entries and one optional plan-level acceptance receipt.
 Persisted collections use lists; runtime policy requests use frozen scalar
 projections. Completeness and current eligibility are observations, not mutable
 manifest truth. See [M71 contracts](../placement_timing/README.md).
+
+# M73 additive RenderPreparation
+
+Schema remains 2. Missing render_preparation loads as empty history with no active
+plan. Present records require every field and reject unknown fields. Raw capacity
+preflight precedes migration copying; typed preflight precedes recursive validation.
+Migration creates no output profile, policies, timing or preparation authority.
+See [RenderPreparation V1](../render_preparation/README.md) for retained versus
+transient boundaries. Historical preparation is reconstructed from exact retained
+M72/M71/M70 evidence, independently of current upstream pointers and bytes.

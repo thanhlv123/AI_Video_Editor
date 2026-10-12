@@ -15,6 +15,7 @@ from .editing import EditingState
 from .voice_timing import VoiceTimingState
 from .placement_timing import PlacementTimingState
 from .render_timeline import RenderTimelineState
+from .render_preparation import RenderPreparationState
 
 SCHEMA_VERSION = 2
 
@@ -252,3 +253,4 @@ class ProjectManifest:
     voice_timing: VoiceTimingState = field(default_factory=VoiceTimingState)
     placement_timing: PlacementTimingState = field(default_factory=PlacementTimingState)
     render_timeline: RenderTimelineState = field(default_factory=RenderTimelineState)
+    render_preparation: RenderPreparationState = field(default_factory=RenderPreparationState)

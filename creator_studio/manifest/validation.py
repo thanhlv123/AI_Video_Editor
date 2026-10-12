@@ -4,6 +4,8 @@ from datetime import datetime
 import re
 import unicodedata
 from .codec import check_typed
+from .render_preparation_validation import (render_preparation_errors,
+    preflight_history as preparation_preflight, preflight_upstream_evidence)
 from .models import ProjectManifest, Rights, MediaKind, TrackKind, SCHEMA_VERSION
 from .execution import execution_errors
 from .semantic_validation import semantic_errors
@@ -39,6 +41,10 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         errors.append(ValidationError(path, code, message))
 
     try:
+        preparation_preflight(getattr(manifest, "render_preparation", None))
+    except ValueError:
+        return [ValidationError("render_preparation", "render_preparation_invalid", "Invalid retained preparation contract")]
+    try:
         render_preflight(getattr(manifest, "render_timeline", None))
         preflight_upstream(manifest)
     except ValueError:
@@ -51,6 +57,10 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         preflight_history(getattr(manifest, "voice_timing", None))
     except ValueError:
         return [ValidationError("voice_timing", "voice_timing_invalid", "Invalid retained voice timing contract")]
+    try:
+        preflight_upstream_evidence(manifest)
+    except ValueError:
+        return [ValidationError("render_preparation", "render_preparation_invalid", "Invalid retained preparation contract")]
     try:
         check_typed(ProjectManifest, manifest)
     except (ValueError, TypeError, AttributeError) as exc:
@@ -281,6 +291,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("placement_timing", code, "Invalid retained placement timing contract")
     for code in render_timeline_errors(manifest):
         error("render_timeline", code, "Invalid retained render timeline contract")
+    for code in render_preparation_errors(manifest):
+        error("render_preparation", code, "Invalid retained preparation contract")
     return errors
 
 

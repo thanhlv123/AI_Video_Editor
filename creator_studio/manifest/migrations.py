@@ -1,6 +1,8 @@
 """Explicit migration boundary. Legacy formats and future versions are rejected."""
 from copy import deepcopy
 from .models import SCHEMA_VERSION
+from .render_preparation_validation import preflight_document as preparation_preflight_document
+from .render_preparation_validation import preflight_upstream_evidence
 from .placement_timing_validation import preflight_document as placement_preflight_document
 from .render_timeline_validation import preflight_document as render_preflight_document, preflight_upstream
 
@@ -15,10 +17,13 @@ def migrate_document(document: dict) -> dict:
     if document["schema_version"] != SCHEMA_VERSION:
         raise UnsupportedSchemaError("Unsupported manifest schema version; no migration registered")
     # Future sequential V2 -> V3 transformations belong here, before strict decoding.
+    preparation_preflight_document(document.get("render_preparation"))
+    preflight_upstream_evidence(document, raw=True)
     render_preflight_document(document.get("render_timeline"))
     preflight_upstream(document, raw=True)
     placement_preflight_document(document.get("placement_timing"))
     result = deepcopy(document)
+    result.setdefault("render_preparation", {"plans": [], "active_render_preparation_plan_id": None})
     result.setdefault("render_timeline", {"plans": [], "active_render_timeline_plan_id": None})
     result.setdefault("semantic", {"source_revisions": [], "documents": [],
                                    "active_creator_document_id": None})
