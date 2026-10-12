@@ -9,6 +9,7 @@ from .execution import execution_errors
 from .semantic_validation import semantic_errors
 from .visual_validation import visual_errors
 from .retrieval_validation import retrieval_errors
+from .selection_validation import selection_errors
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -249,6 +250,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("visual_planning", code, "Visual persistent contract is invalid.")
     for code in retrieval_errors(manifest.retrieval, manifest.visual_planning, manifest.semantic):
         error("retrieval", code, "Retrieval persistent contract is invalid.")
+    for code in selection_errors(manifest.selection, manifest.retrieval, manifest.visual_planning):
+        error("selection", code, "Selection persistent contract is invalid.")
     return errors
 
 

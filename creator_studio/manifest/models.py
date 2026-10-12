@@ -9,6 +9,7 @@ from .semantic import SemanticState
 from .visual import VisualState
 from .rights import Rights
 from .retrieval import RetrievalState
+from .selection import SelectionState
 
 SCHEMA_VERSION = 2
 
@@ -240,3 +241,4 @@ class ProjectManifest:
     semantic: SemanticState = field(default_factory=SemanticState)
     visual_planning: VisualState = field(default_factory=VisualState)
     retrieval: RetrievalState = field(default_factory=RetrievalState)
+    selection: SelectionState = field(default_factory=SelectionState)

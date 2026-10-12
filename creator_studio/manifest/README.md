@@ -86,3 +86,16 @@ fail strict decoding/validation. Historical structure/signatures are validated
 separately from current eligibility; review and upstream changes do not silently
 reactivate runs or remove history. See `creator_studio/retrieval/README.md` for
 limits, signatures, provider policy and the two exact stage artifacts.
+
+# M67 additive logical selection extension
+
+`ProjectManifest.selection` adds bounded immutable logical SelectionRun history,
+append-only exact-choice SelectionReview transitions and an explicit active ID.
+Schema remains 2. Missing selection receives an empty state during migration;
+present malformed data fails strict decoding. Migration never fabricates history.
+SelectedCandidateRef stores only candidate_id and metadata_fingerprint. All
+descriptor and provenance observations remain authoritative in retained M66 runs.
+Selection never authorizes rights or creates canonical MediaReference objects.
+Historical validity is independent of active pointers; current eligibility and
+effective reviewed output are explicit pure projections. See selection/README.md
+for hard-evidence policy, protected replacement, bounds and stage contracts.

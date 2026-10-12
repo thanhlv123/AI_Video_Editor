@@ -18,6 +18,7 @@ def migrate_document(document: dict) -> dict:
                                    "active_creator_document_id": None})
     result.setdefault("visual_planning", {"plans": [], "active_creator_plan_id": None})
     result.setdefault("retrieval", {"runs": [], "active_creator_retrieval_id": None})
+    result.setdefault("selection", {"runs": [], "reviews": [], "active_creator_selection_id": None})
     # M63 additive defaults: preserve all older script and execution data.
     if isinstance(result.get("content"), dict):
         result["content"].setdefault("records", [])
