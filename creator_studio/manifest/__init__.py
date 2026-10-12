@@ -13,3 +13,5 @@ from .retrieval_validation import eligible_active_retrieval
 from .selection import (SelectionState, SelectionSpec, SelectionRun, ShotSelection,
     SelectedCandidateRef, SelectionReview)
 from .selection_validation import eligible_active_selection
+from .acquisition import (AcquisitionSpec, AcquisitionProviderSpec, InspectionFacts,
+    MaterializedAsset, MaterializationRecord, ShotAcquisition, AcquisitionRun, AcquisitionState)

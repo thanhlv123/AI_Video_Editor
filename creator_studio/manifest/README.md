@@ -87,6 +87,18 @@ separately from current eligibility; review and upstream changes do not silently
 reactivate runs or remove history. See `creator_studio/retrieval/README.md` for
 limits, signatures, provider policy and the two exact stage artifacts.
 
+# M68 additive acquisition extension
+
+`ProjectManifest.acquisition` retains bounded AcquisitionRuns, MaterializationRecords
+and digest-addressed MaterializedAssets with an explicit active pointer. Schema
+remains 2; only absent acquisition fields receive an empty state. Present malformed
+state fails strict decoding. Historical validation is pure, filesystem-free and
+does not require current upstream activation or local object existence. Captured
+effective selection review signatures bind an actual retained review prefix.
+Runtime current usability and execution reuse are separate checks. No canonical
+MediaReference or final approval is created. See acquisition/README.md for storage,
+trust, cancellation, object-first publication and current runtime constraints.
+
 # M67 additive logical selection extension
 
 `ProjectManifest.selection` adds bounded immutable logical SelectionRun history,
