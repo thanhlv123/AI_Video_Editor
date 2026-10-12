@@ -14,6 +14,8 @@ from .acquisition_validation import acquisition_errors
 from .editing_validation import editing_errors
 from .voice_timing_validation import voice_timing_errors, preflight_history
 from .placement_timing_validation import placement_timing_errors, preflight_history as placement_preflight
+from .render_timeline_validation import (render_timeline_errors, preflight_history as render_preflight,
+    preflight_upstream)
 from .content import canonical_eligible, revision_signature, SourceType, ContentProvenance
 
 
@@ -36,6 +38,11 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
     def error(path, code, message):
         errors.append(ValidationError(path, code, message))
 
+    try:
+        render_preflight(getattr(manifest, "render_timeline", None))
+        preflight_upstream(manifest)
+    except ValueError:
+        return [ValidationError("render_timeline", "render_timeline_invalid", "Invalid retained render timeline contract")]
     try:
         placement_preflight(getattr(manifest, "placement_timing", None))
     except ValueError:
@@ -272,6 +279,8 @@ def validate(manifest: ProjectManifest) -> list[ValidationError]:
         error("voice_timing", code, "Invalid retained voice timing contract")
     for code in placement_timing_errors(manifest):
         error("placement_timing", code, "Invalid retained placement timing contract")
+    for code in render_timeline_errors(manifest):
+        error("render_timeline", code, "Invalid retained render timeline contract")
     return errors
 
 
