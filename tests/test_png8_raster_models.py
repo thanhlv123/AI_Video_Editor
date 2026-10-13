@@ -308,6 +308,7 @@ class RasterModelTests(unittest.TestCase):
                 "PNG8RasterResult",
                 "validate_raster_observation",
                 "validate_raster_result",
+                "PNG8RasterObservationRuntime",
             ),
         )
 

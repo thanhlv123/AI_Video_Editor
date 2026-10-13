@@ -9,6 +9,7 @@ from .models import (
     validate_raster_observation,
     validate_raster_result,
 )
+from .runtime import PNG8RasterObservationRuntime
 
 
 __all__ = (
@@ -19,4 +20,5 @@ __all__ = (
     "PNG8RasterResult",
     "validate_raster_observation",
     "validate_raster_result",
+    "PNG8RasterObservationRuntime",
 )
