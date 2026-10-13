@@ -557,13 +557,20 @@ class ExternalVisionHTTPTransportConfigTests(
             api.__all__,
             (
                 "EXTERNAL_VISION_HTTP_CONFIG_SCHEMA_VERSION",
+                "MAX_EXTERNAL_VISION_HTTP_CREDENTIAL_LENGTH",
                 "MAX_EXTERNAL_VISION_HTTP_ENDPOINT_LENGTH",
                 "MAX_EXTERNAL_VISION_HTTP_REQUEST_BYTES",
                 "MAX_EXTERNAL_VISION_HTTP_RESPONSE_BYTES",
                 "MAX_EXTERNAL_VISION_HTTP_TIMEOUT_MILLIS",
                 "MIN_EXTERNAL_VISION_HTTP_TIMEOUT_MILLIS",
                 "ExternalVisionHTTPConfig",
+                "ExternalVisionHTTPCredential",
+                "ExternalVisionHTTPCredentialFailure",
+                "ExternalVisionHTTPCredentialFailureCode",
+                "ExternalVisionHTTPCredentialHeader",
+                "ExternalVisionHTTPCredentialSource",
                 "ExternalVisionHTTPHeaderPolicy",
+                "ExternalVisionHTTPSJSONTransport",
                 "validate_external_vision_http_config",
             ),
         )
@@ -577,6 +584,11 @@ class ExternalVisionHTTPTransportConfigTests(
             {
                 "STRICT_JSON_V1",
             },
+        )
+
+        self.assertEqual(
+            api.MAX_EXTERNAL_VISION_HTTP_CREDENTIAL_LENGTH,
+            4096,
         )
 
 
