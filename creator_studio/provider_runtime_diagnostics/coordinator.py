@@ -15,6 +15,13 @@ The coordinator never treats detached diagnostic reports as execution
 authority. It invokes the real upstream runtimes internally and validates
 their returned reports before normalization.
 
+The original ``diagnose`` path preserves the existing M91/M92 environment-
+backed credential behavior. M100 host integration may explicitly supply one
+runtime credential-source factory through
+``diagnose_with_credential_source_factory``. The same factory authority is
+forwarded to both M91 and M92 and is never stored in the detached diagnostic
+report.
+
 Caller check/cancellation authority is preserved even when a supplied check
 callable is invoked inside M91 or M92. Caller exceptions are never
 reclassified as INTERNAL_FAILURE.
@@ -465,13 +472,61 @@ class ProviderRuntimeDiagnosticsCoordinator:
         remote_image_source=None,
     ):
         """
-        Diagnose one provider runtime configuration.
+        Diagnose one provider runtime configuration using the original
+        environment-backed M91/M92 credential path.
 
         OFFLINE performs M91 readiness only.
 
         ONLINE performs M91 readiness first and invokes M92 connectivity only
         when readiness reports READY.
         """
+        return self._diagnose(
+            config,
+            mode,
+            check,
+            remote_image_source,
+            credential_source_factory=None,
+            use_credential_source_factory=False,
+        )
+
+    def diagnose_with_credential_source_factory(
+        self,
+        config,
+        mode,
+        check,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Diagnose one provider runtime configuration using one caller-supplied
+        runtime credential-source factory.
+
+        The same runtime authority is forwarded to M91 readiness and, when
+        ONLINE readiness succeeds, to M92 connectivity. The factory is never
+        retained by this stateless coordinator and never enters a detached
+        diagnostic report.
+        """
+        return self._diagnose(
+            config,
+            mode,
+            check,
+            remote_image_source,
+            credential_source_factory=(
+                credential_source_factory
+            ),
+            use_credential_source_factory=True,
+        )
+
+    def _diagnose(
+        self,
+        config,
+        mode,
+        check,
+        remote_image_source,
+        *,
+        credential_source_factory,
+        use_credential_source_factory,
+    ):
         check()
 
         if (
@@ -491,13 +546,25 @@ class ProviderRuntimeDiagnosticsCoordinator:
                 ProviderRuntimeReadinessChecker()
             )
 
-            readiness_report = (
-                readiness_checker.check(
-                    config,
-                    guarded_check,
-                    remote_image_source,
+            if use_credential_source_factory:
+                readiness_report = (
+                    readiness_checker
+                    .check_with_credential_source_factory(
+                        config,
+                        guarded_check,
+                        credential_source_factory,
+                        remote_image_source,
+                    )
                 )
-            )
+
+            else:
+                readiness_report = (
+                    readiness_checker.check(
+                        config,
+                        guarded_check,
+                        remote_image_source,
+                    )
+                )
 
             validate_provider_runtime_readiness_report(
                 readiness_report
@@ -571,12 +638,23 @@ class ProviderRuntimeDiagnosticsCoordinator:
                 ProviderConnectivityProbe()
             )
 
-            connectivity_report = (
-                connectivity_probe.probe(
-                    config,
-                    guarded_check,
+            if use_credential_source_factory:
+                connectivity_report = (
+                    connectivity_probe
+                    .probe_with_credential_source_factory(
+                        config,
+                        guarded_check,
+                        credential_source_factory,
+                    )
                 )
-            )
+
+            else:
+                connectivity_report = (
+                    connectivity_probe.probe(
+                        config,
+                        guarded_check,
+                    )
+                )
 
             validate_provider_connectivity_probe_report(
                 connectivity_report
