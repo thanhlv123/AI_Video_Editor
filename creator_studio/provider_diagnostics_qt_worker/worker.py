@@ -1,7 +1,6 @@
 """M98 provider diagnostics Qt worker.
 
-This module provides the QObject worker that will later be hosted by the M98
-QThread bridge.
+This module provides the QObject worker hosted by the M98 QThread bridge.
 
 The worker coordinates only:
 
@@ -12,6 +11,16 @@ The worker coordinates only:
 
 The worker does not perform provider HTTP work itself. M97/M95/M92 retain
 their existing responsibilities.
+
+Runtime-only execution arguments may include:
+
+- detached M95 request;
+- optional remote-image source;
+- optional M100 credential-source factory.
+
+The M100 credential-source factory is retained only for the lifetime of one
+worker execution. It is released together with the other runtime arguments
+after execution completes.
 
 Cancellation is intentionally not implemented as a queued Qt slot. A queued
 slot on a busy worker thread might not execute until the blocking diagnostic
@@ -36,7 +45,8 @@ Signals:
 - ``finished``:
   emitted once with the final safe M97 state.
 
-No raw exception, credential, HTTP response or provider response is emitted.
+No raw exception, credential, credential-source factory, HTTP response or
+provider response is emitted.
 """
 
 import threading
@@ -138,6 +148,9 @@ class ProviderDiagnosticsQtWorker(
             remote_image_source
         )
 
+        self._credential_source_factory = None
+        self._use_credential_source_factory = False
+
         self._controller = (
             ProviderDiagnosticsGuiController()
         )
@@ -148,6 +161,33 @@ class ProviderDiagnosticsQtWorker(
 
         self._run_gate = threading.Lock()
         self._has_run = False
+
+    @classmethod
+    def create_with_credential_source_factory(
+        cls,
+        request,
+        credential_source_factory,
+        remote_image_source=None,
+        parent=None,
+    ):
+        """
+        Create one worker carrying explicit runtime credential authority.
+
+        The original constructor contract remains unchanged. The supplied
+        factory is retained only until this one-shot worker completes.
+        """
+        worker = cls(
+            request,
+            remote_image_source,
+            parent,
+        )
+
+        worker._credential_source_factory = (
+            credential_source_factory
+        )
+        worker._use_credential_source_factory = True
+
+        return worker
 
     @property
     def state(
@@ -190,6 +230,8 @@ class ProviderDiagnosticsQtWorker(
     ):
         self._request = None
         self._remote_image_source = None
+        self._credential_source_factory = None
+        self._use_credential_source_factory = False
 
     def _recover_failed_state(
         self,
@@ -228,11 +270,23 @@ class ProviderDiagnosticsQtWorker(
         fatal = False
 
         try:
-            state = self._controller.run(
-                self._request,
-                self._cancellation.check,
-                self._remote_image_source,
-            )
+            if self._use_credential_source_factory:
+                state = (
+                    self._controller
+                    .run_with_credential_source_factory(
+                        self._request,
+                        self._cancellation.check,
+                        self._credential_source_factory,
+                        self._remote_image_source,
+                    )
+                )
+
+            else:
+                state = self._controller.run(
+                    self._request,
+                    self._cancellation.check,
+                    self._remote_image_source,
+                )
 
             try:
                 state = _validate_terminal_state(

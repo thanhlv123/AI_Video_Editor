@@ -12,6 +12,15 @@ Architecture:
         -> M97 controller
         -> M95/M96 diagnostics pipeline
 
+The original ``start`` path preserves the existing environment-backed
+credential behavior.
+
+M100 host integration may instead use
+``start_with_credential_source_factory``. The supplied factory is transferred
+directly into the one-shot worker as runtime-only authority. The bridge does
+not resolve the credential itself and does not retain the factory after
+``start_with_credential_source_factory`` returns.
+
 Cancellation does not rely on the worker thread's Qt event loop. The bridge
 calls the worker's thread-safe ``request_cancel`` method directly, which sets
 the M98 threading.Event cancellation token.
@@ -41,13 +50,14 @@ The bridge does not:
 - read environment variables;
 - resolve credentials;
 - perform HTTP requests;
-- store detached credentials;
+- store detached credential values;
 - expose raw exceptions;
 - expose HTTP/provider response metadata;
 - block waiting for the worker thread during normal execution.
 
 The request and optional remote-image source are owned temporarily by the
-worker and are released by that worker after execution.
+worker and are released by that worker after execution. An explicitly supplied
+M100 credential-source factory follows the same worker-lifetime rule.
 """
 
 import threading
@@ -261,7 +271,47 @@ class ProviderDiagnosticsQtThreadBridge(
         request,
         remote_image_source=None,
     ):
-        """Start one diagnostic execution without blocking the caller."""
+        """
+        Start one diagnostic execution through the original runtime path
+        without blocking the caller.
+        """
+        return self._start(
+            request,
+            remote_image_source,
+            credential_source_factory=None,
+            use_credential_source_factory=False,
+        )
+
+    def start_with_credential_source_factory(
+        self,
+        request,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Start one diagnostic execution carrying explicit M100 runtime
+        credential authority.
+
+        The bridge does not retain the supplied factory itself. The one-shot
+        worker owns it only until execution completes.
+        """
+        return self._start(
+            request,
+            remote_image_source,
+            credential_source_factory=(
+                credential_source_factory
+            ),
+            use_credential_source_factory=True,
+        )
+
+    def _start(
+        self,
+        request,
+        remote_image_source,
+        *,
+        credential_source_factory,
+        use_credential_source_factory,
+    ):
         running_state = _running_state()
 
         # Reserve first.
@@ -278,10 +328,21 @@ class ProviderDiagnosticsQtThreadBridge(
         try:
             thread = QThread()
 
-            worker = ProviderDiagnosticsQtWorker(
-                request,
-                remote_image_source,
-            )
+            if use_credential_source_factory:
+                worker = (
+                    ProviderDiagnosticsQtWorker
+                    .create_with_credential_source_factory(
+                        request,
+                        credential_source_factory,
+                        remote_image_source,
+                    )
+                )
+
+            else:
+                worker = ProviderDiagnosticsQtWorker(
+                    request,
+                    remote_image_source,
+                )
 
             worker.state_changed.connect(
                 self._capture_state,
