@@ -13,9 +13,14 @@ or presentations do not grant execution authority.
 
 Runtime-only dependencies:
 - check;
-- remote_image_source.
+- remote_image_source;
+- optional M100 credential_source_factory.
 
 These dependencies are never stored in the detached M95 request or result.
+
+The original ``run`` path preserves the existing environment-backed provider
+credential behavior. M100 host integration may explicitly supply one runtime
+credential-source factory through ``run_with_credential_source_factory``.
 
 The service preserves caller cancellation/check authority. Exceptions raised
 by the caller-owned check callable are propagated and are never reclassified
@@ -111,12 +116,54 @@ class ProviderDiagnosticsApplicationService:
         remote_image_source=None,
     ):
         """
-        Execute one provider diagnostics application request.
+        Execute one provider diagnostics application request through the
+        original environment-backed diagnostics path.
 
         The detached request supplies only configuration and diagnostic mode.
         Runtime-only check/cancellation and remote-image dependencies are
         supplied directly to this method.
         """
+        return self._run(
+            request,
+            check,
+            remote_image_source,
+            credential_source_factory=None,
+            use_credential_source_factory=False,
+        )
+
+    def run_with_credential_source_factory(
+        self,
+        request,
+        check,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Execute one provider diagnostics application request using one
+        caller-supplied runtime credential-source factory.
+
+        The factory is forwarded directly to M93 runtime diagnostics and is
+        never stored in the detached M95 request or result.
+        """
+        return self._run(
+            request,
+            check,
+            remote_image_source,
+            credential_source_factory=(
+                credential_source_factory
+            ),
+            use_credential_source_factory=True,
+        )
+
+    def _run(
+        self,
+        request,
+        check,
+        remote_image_source,
+        *,
+        credential_source_factory,
+        use_credential_source_factory,
+    ):
         check()
 
         try:
@@ -149,14 +196,27 @@ class ProviderDiagnosticsApplicationService:
                 ProviderRuntimeDiagnosticsCoordinator()
             )
 
-            diagnostic_report = (
-                coordinator.diagnose(
-                    request.config,
-                    request.mode,
-                    guarded_check,
-                    remote_image_source,
+            if use_credential_source_factory:
+                diagnostic_report = (
+                    coordinator
+                    .diagnose_with_credential_source_factory(
+                        request.config,
+                        request.mode,
+                        guarded_check,
+                        credential_source_factory,
+                        remote_image_source,
+                    )
                 )
-            )
+
+            else:
+                diagnostic_report = (
+                    coordinator.diagnose(
+                        request.config,
+                        request.mode,
+                        guarded_check,
+                        remote_image_source,
+                    )
+                )
 
             validate_provider_runtime_diagnostic_report(
                 diagnostic_report
