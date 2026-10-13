@@ -602,11 +602,33 @@ class EnvironmentCredentialSourceTests(
         )
 
         self.assertEqual(
+            api.PROVIDER_RUNTIME_CONFIG_SCHEMA_VERSION,
+            1,
+        )
+
+        self.assertTrue(
+            hasattr(
+                api,
+                "ProviderRuntimeConfig",
+            )
+        )
+
+        self.assertTrue(
+            hasattr(
+                api,
+                "validate_provider_runtime_config",
+            )
+        )
+
+        self.assertEqual(
             api.__all__,
             (
                 "MAX_PROVIDER_ENVIRONMENT_VARIABLE_NAME_LENGTH",
+                "PROVIDER_RUNTIME_CONFIG_SCHEMA_VERSION",
                 "EnvironmentCredentialSource",
                 "ProviderEnvironmentCredentialMode",
+                "ProviderRuntimeConfig",
+                "validate_provider_runtime_config",
             ),
         )
 
