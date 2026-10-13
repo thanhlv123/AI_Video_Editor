@@ -1007,6 +1007,42 @@ class ProviderSpecificVisionAdapterProviderTransportTests(
             .RESPONSE_INVALID,
         )
 
+    def test_normalized_response_respects_request_limit(self):
+        request_value = dataclasses.replace(
+            request(),
+            max_response_bytes=1,
+        )
+
+        exchange = FakeExchange(
+            raw_response(
+                openai_document()
+            )
+        )
+
+        transport = ProviderSpecificVisionTransport(
+            openai_profile(),
+            exchange,
+        )
+
+        with self.assertRaises(
+            ExternalVisionTransportFailure
+        ) as caught:
+            transport.send(
+                request_value,
+                lambda: None,
+            )
+
+        self.assertIs(
+            caught.exception.code,
+            ExternalVisionTransportFailureCode
+            .RESOURCE_LIMIT_EXCEEDED,
+        )
+
+        self.assertEqual(
+            exchange.calls,
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

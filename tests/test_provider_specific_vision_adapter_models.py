@@ -529,13 +529,24 @@ class ProviderSpecificVisionAdapterModelTests(
             (
                 "MAX_PROVIDER_VISION_MODEL_LENGTH",
                 "PROVIDER_VISION_PROFILE_SCHEMA_VERSION",
+                "M88ProviderVisionHTTPExchange",
+                "ProviderSpecificVisionTransport",
+                "ProviderVisionHTTPExchange",
                 "ProviderVisionProfile",
+                "ProviderVisionRemoteImageSource",
                 "VisionProviderImageInputMode",
                 "VisionProviderKind",
                 "VisionProviderRequestDialect",
                 "VisionProviderResponseDialect",
                 "validate_provider_vision_profile",
             ),
+        )
+
+        self.assertTrue(
+            issubclass(
+                api.M88ProviderVisionHTTPExchange,
+                api.ProviderVisionHTTPExchange,
+            )
         )
 
 

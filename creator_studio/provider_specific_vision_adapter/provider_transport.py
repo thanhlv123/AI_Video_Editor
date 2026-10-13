@@ -460,4 +460,24 @@ class ProviderSpecificVisionTransport(
 
         check()
 
+        if (
+            type(result)
+            is not ExternalVisionTransportResponse
+        ):
+            raise ExternalVisionTransportFailure(
+                ExternalVisionTransportFailureCode
+                .RESPONSE_INVALID
+            )
+
+        if (
+            result.body_length
+            > request.max_response_bytes
+        ):
+            raise ExternalVisionTransportFailure(
+                ExternalVisionTransportFailureCode
+                .RESOURCE_LIMIT_EXCEEDED
+            )
+
+        check()
+
         return result
