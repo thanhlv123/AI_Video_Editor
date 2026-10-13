@@ -5,13 +5,17 @@ probe.
 
 The probe:
 - validates one M90 ProviderRuntimeConfig;
-- resolves its runtime environment credential;
+- resolves its runtime credential;
 - performs one authenticated HTTPS GET against a provider diagnostic endpoint;
 - sends no image;
 - sends no semantic prompt;
 - performs no model inference;
 - bounds Kie.ai response reading;
 - returns only a detached, secret-free diagnostic report.
+
+The original ``probe`` path uses the M90 environment-backed credential source.
+M100 host integration may explicitly supply a runtime credential-source factory
+through ``probe_with_credential_source_factory``. The factory is not retained.
 
 Probe endpoints:
 
@@ -527,6 +531,43 @@ class ProviderConnectivityProbe:
         config,
         check,
     ):
+        """
+        Execute the original M92 connectivity probe.
+
+        This preserves the existing M92 execution signature and uses the
+        environment-backed M90 credential source.
+        """
+        return self._probe(
+            config,
+            check,
+            EnvironmentCredentialSource,
+        )
+
+    def probe_with_credential_source_factory(
+        self,
+        config,
+        check,
+        credential_source_factory,
+    ):
+        """
+        Execute connectivity using a caller-supplied runtime credential-source
+        factory.
+
+        The factory is runtime-only authority. It is never retained by this
+        stateless probe and never enters the detached connectivity report.
+        """
+        return self._probe(
+            config,
+            check,
+            credential_source_factory,
+        )
+
+    def _probe(
+        self,
+        config,
+        check,
+        credential_source_factory,
+    ):
         check()
 
         try:
@@ -547,7 +588,7 @@ class ProviderConnectivityProbe:
 
         try:
             credential_source = (
-                EnvironmentCredentialSource(
+                credential_source_factory(
                     config.credential_environment_variable,
                     config.profile.credential_header,
                     config.credential_mode,
