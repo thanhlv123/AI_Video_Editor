@@ -6,7 +6,11 @@ for execution without contacting the provider.
 Readiness checks may:
 - validate detached provider runtime configuration;
 - verify the required runtime remote-image dependency is present;
-- resolve and validate the configured environment credential.
+- resolve and validate the configured runtime credential.
+
+The original ``check`` path uses the M90 environment-backed credential source.
+M100 host integration may explicitly supply a runtime credential-source factory
+through ``check_with_credential_source_factory``. The factory is not retained.
 
 Readiness checks never:
 - open a network connection;
@@ -168,6 +172,47 @@ class ProviderRuntimeReadinessChecker:
         """
         Check one provider runtime configuration without provider network I/O.
 
+        This preserves the original M91 public execution signature and uses the
+        environment-backed M90 credential source.
+        """
+        return self._check(
+            config,
+            check,
+            EnvironmentCredentialSource,
+            remote_image_source,
+        )
+
+    def check_with_credential_source_factory(
+        self,
+        config,
+        check,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Check one provider runtime configuration using a caller-supplied
+        runtime credential-source factory.
+
+        The factory is runtime-only authority. It is never stored on this
+        stateless checker and never enters the returned readiness report.
+        """
+        return self._check(
+            config,
+            check,
+            credential_source_factory,
+            remote_image_source,
+        )
+
+    def _check(
+        self,
+        config,
+        check,
+        credential_source_factory,
+        remote_image_source,
+    ):
+        """
+        Execute one readiness check using the supplied runtime source factory.
+
         The supplied check callable is intentionally allowed to propagate its
         own exceptions and BaseException subclasses. This preserves caller
         cancellation and deadline authority.
@@ -210,7 +255,7 @@ class ProviderRuntimeReadinessChecker:
 
         try:
             credential_source = (
-                EnvironmentCredentialSource(
+                credential_source_factory(
                     config.credential_environment_variable,
                     config.profile.credential_header,
                     config.credential_mode,
