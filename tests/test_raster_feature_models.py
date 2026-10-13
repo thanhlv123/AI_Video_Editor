@@ -521,6 +521,7 @@ class RasterFeatureModelTests(unittest.TestCase):
                 "RasterFeatureResult",
                 "validate_raster_feature_observation",
                 "validate_raster_feature_result",
+                "RasterFeatureObservationRuntime",
             ),
         )
 

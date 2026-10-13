@@ -11,6 +11,7 @@ from .models import (
     validate_raster_feature_observation,
     validate_raster_feature_result,
 )
+from .runtime import RasterFeatureObservationRuntime
 
 
 __all__ = (
@@ -23,4 +24,5 @@ __all__ = (
     "RasterFeatureResult",
     "validate_raster_feature_observation",
     "validate_raster_feature_result",
+    "RasterFeatureObservationRuntime",
 )
