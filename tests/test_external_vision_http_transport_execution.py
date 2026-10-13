@@ -171,6 +171,7 @@ class ExternalVisionHTTPTransportExecutionTests(
             (
                 "self",
                 "config",
+                "credential_source",
             ),
         )
 

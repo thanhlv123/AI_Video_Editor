@@ -6,14 +6,14 @@ It intentionally:
 - accepts only previously validated HTTPS configuration;
 - sends POST requests only;
 - sends JSON only;
-- carries no provider credentials;
-- adds no Authorization, Cookie, or Proxy-Authorization headers;
+- keeps provider credentials outside configuration and payload models;
+- supports only the explicit credential header contract;
 - disables HTTP redirect following;
 - disables inherited environment proxy configuration;
 - reads at most one byte beyond the permitted response size;
-- normalizes all expected execution failures into the M87 transport contract.
+- normalizes expected execution failures into the M87 transport contract.
 
-Provider-specific authentication belongs to a later boundary.
+Credentials are resolved only at runtime through the M88 credential boundary.
 """
 
 import socket
@@ -28,6 +28,12 @@ from ..external_vision_provider_transport import (
 from .config import (
     ExternalVisionHTTPConfig,
     validate_external_vision_http_config,
+)
+from .credential_contract import (
+    ExternalVisionHTTPCredentialFailure,
+    ExternalVisionHTTPCredentialFailureCode,
+    ExternalVisionHTTPCredentialSource,
+    _resolve_http_credential,
 )
 from .response_reader import (
     ExternalVisionHTTPResponseEnvelope,
@@ -45,6 +51,8 @@ from .serializer import (
 class _NoRedirectHandler(
     urllib.request.HTTPRedirectHandler
 ):
+    """Reject every HTTP redirect."""
+
     def redirect_request(
         self,
         req,
@@ -59,10 +67,12 @@ class _NoRedirectHandler(
 
 def _build_https_opener():
     """
-    Build one direct HTTPS-capable opener.
+    Build one direct HTTP(S) opener.
 
     ProxyHandler({}) intentionally prevents ambient environment proxy
-    settings from silently changing the transport path.
+    configuration from silently changing the transport path.
+
+    Redirect handling is explicitly disabled.
     """
     return urllib.request.build_opener(
         urllib.request.ProxyHandler(
@@ -76,6 +86,12 @@ def _open_https(
     request,
     timeout_seconds,
 ):
+    """
+    Execute one request through the bounded opener.
+
+    Kept as a separate function so execution can be replaced by deterministic
+    fakes in tests without performing real network access.
+    """
     opener = _build_https_opener()
 
     return opener.open(
@@ -87,6 +103,7 @@ def _open_https(
 def _map_http_status(
     status_code,
 ):
+    """Map one HTTP status to the normalized M87 transport failure contract."""
     if type(status_code) is not int:
         return (
             ExternalVisionTransportFailureCode
@@ -143,6 +160,7 @@ def _map_http_status(
 def _map_serializer_failure(
     code,
 ):
+    """Map the M88 serializer failure contract into the M87 contract."""
     if (
         code
         is _HTTPRequestSerializeFailureCode
@@ -172,6 +190,7 @@ def _map_serializer_failure(
 def _map_reader_failure(
     code,
 ):
+    """Map the M88 bounded response reader failure into the M87 contract."""
     if (
         code
         is _HTTPResponseReadFailureCode
@@ -183,10 +202,14 @@ def _map_reader_failure(
         )
 
     if code in (
-        _HTTPResponseReadFailureCode.ENVELOPE_INVALID,
-        _HTTPResponseReadFailureCode.HTTP_STATUS_INVALID,
-        _HTTPResponseReadFailureCode.CONTENT_TYPE_INVALID,
-        _HTTPResponseReadFailureCode.RESPONSE_INVALID,
+        _HTTPResponseReadFailureCode
+        .ENVELOPE_INVALID,
+        _HTTPResponseReadFailureCode
+        .HTTP_STATUS_INVALID,
+        _HTTPResponseReadFailureCode
+        .CONTENT_TYPE_INVALID,
+        _HTTPResponseReadFailureCode
+        .RESPONSE_INVALID,
     ):
         return (
             ExternalVisionTransportFailureCode
@@ -199,18 +222,63 @@ def _map_reader_failure(
     )
 
 
+def _map_credential_failure(
+    code,
+):
+    """Map runtime credential failures into the M87 transport contract."""
+    if (
+        code
+        is ExternalVisionHTTPCredentialFailureCode
+        .UNAVAILABLE
+    ):
+        return (
+            ExternalVisionTransportFailureCode
+            .UNAVAILABLE
+        )
+
+    if (
+        code
+        is ExternalVisionHTTPCredentialFailureCode
+        .RESOURCE_LIMIT_EXCEEDED
+    ):
+        return (
+            ExternalVisionTransportFailureCode
+            .RESOURCE_LIMIT_EXCEEDED
+        )
+
+    if (
+        code
+        is ExternalVisionHTTPCredentialFailureCode
+        .DEADLINE_EXCEEDED
+    ):
+        return (
+            ExternalVisionTransportFailureCode
+            .DEADLINE_EXCEEDED
+        )
+
+    return (
+        ExternalVisionTransportFailureCode
+        .INTERNAL_FAILURE
+    )
+
+
 class ExternalVisionHTTPSJSONTransport(
     ExternalVisionTransport
 ):
     """
-    Concrete credential-free HTTPS implementation of the M87 transport.
+    Concrete HTTPS implementation of the M87 transport.
 
-    Authentication is intentionally outside this class.
+    Provider credentials remain outside configuration and payload models.
+
+    An optional runtime credential source is resolved only during send().
+    The resolved credential is used solely to construct the HTTP request
+    header and is never added to the serialized JSON payload.
     """
 
     def __init__(
         self,
         config,
+        credential_source=None,
     ):
         try:
             validate_external_vision_http_config(
@@ -230,13 +298,35 @@ class ExternalVisionHTTPSJSONTransport(
                 "external_vision_https_json_transport_invalid"
             )
 
+        if (
+            credential_source is not None
+            and not isinstance(
+                credential_source,
+                ExternalVisionHTTPCredentialSource,
+            )
+        ):
+            raise ValueError(
+                "external_vision_https_json_transport_invalid"
+            )
+
         self._config = config
+        self._credential_source = (
+            credential_source
+        )
 
     def send(
         self,
         request,
         check,
     ):
+        """
+        Serialize and execute one bounded HTTPS JSON request.
+
+        Source authority is not accepted by this layer. The request is already
+        detached M87 transport data.
+
+        Credentials, when configured, are resolved only for this execution.
+        """
         try:
             body = _serialize_http_request(
                 request,
@@ -253,14 +343,40 @@ class ExternalVisionHTTPSJSONTransport(
 
         check()
 
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+        if self._credential_source is not None:
+            try:
+                credential = (
+                    _resolve_http_credential(
+                        self._credential_source,
+                        check,
+                    )
+                )
+
+            except ExternalVisionHTTPCredentialFailure as exc:
+                raise ExternalVisionTransportFailure(
+                    _map_credential_failure(
+                        exc.code
+                    )
+                ) from None
+
+            check()
+
+            headers[
+                credential.header.value
+            ] = credential.value
+
+        check()
+
         try:
             http_request = urllib.request.Request(
                 url=self._config.endpoint,
                 data=body,
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 method="POST",
             )
 
@@ -308,16 +424,16 @@ class ExternalVisionHTTPSJSONTransport(
                     )
                 )
 
-            headers = getattr(
+            headers_object = getattr(
                 response,
                 "headers",
                 None,
             )
 
             if (
-                headers is None
+                headers_object is None
                 or not hasattr(
-                    headers,
+                    headers_object,
                     "get",
                 )
             ):
@@ -326,7 +442,7 @@ class ExternalVisionHTTPSJSONTransport(
                     .RESPONSE_INVALID
                 )
 
-            content_type = headers.get(
+            content_type = headers_object.get(
                 "Content-Type",
                 "",
             )
