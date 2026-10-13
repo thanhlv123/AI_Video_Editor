@@ -472,6 +472,7 @@ class BoundedRasterModelTests(unittest.TestCase):
                 "BoundedRasterSamplingMethod",
                 "validate_bounded_raster_observation",
                 "validate_bounded_raster_result",
+                "BoundedRasterSamplingRuntime",
             ),
         )
 

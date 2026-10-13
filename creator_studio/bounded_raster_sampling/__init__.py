@@ -12,6 +12,7 @@ from .models import (
     validate_bounded_raster_observation,
     validate_bounded_raster_result,
 )
+from .runtime import BoundedRasterSamplingRuntime
 
 
 __all__ = (
@@ -25,4 +26,5 @@ __all__ = (
     "BoundedRasterSamplingMethod",
     "validate_bounded_raster_observation",
     "validate_bounded_raster_result",
+    "BoundedRasterSamplingRuntime",
 )
