@@ -13,12 +13,17 @@ The binder:
 
 - forwards run intent to the integration owner;
 - delegates cancellation to M98;
-- starts M98 only when an already-built request is supplied;
+- starts M98 only when already-built runtime arguments are supplied;
 - renders M98 controller states into the M99 view;
 - forwards safe lifecycle signals.
 
-The binder temporarily receives request/runtime arguments only as method
-arguments. It does not retain them after ``start`` returns.
+Runtime arguments are accepted only as method arguments. The binder does not
+resolve credentials, inspect credential values, or retain runtime authority
+after a start method returns.
+
+The original ``start`` path preserves the pre-M100 M98 execution path.
+M100 host integration may use ``start_with_credential_source_factory`` to
+transit caller-owned runtime credential authority directly into M98.
 """
 
 from PyQt6.QtCore import (
@@ -141,6 +146,20 @@ class ProviderDiagnosticsQtViewBinder(
             self._on_bridge_finished
         )
 
+    def _publish_started_state(
+        self,
+        state,
+    ):
+        self._view.bind_state(
+            state
+        )
+
+        self.state_changed.emit(
+            state
+        )
+
+        return state
+
     def start(
         self,
         request,
@@ -152,15 +171,34 @@ class ProviderDiagnosticsQtViewBinder(
             remote_image_source,
         )
 
-        self._view.bind_state(
+        return self._publish_started_state(
             state
         )
 
-        self.state_changed.emit(
-            state
+    def start_with_credential_source_factory(
+        self,
+        request,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Transit one caller-owned runtime credential-source factory into M98.
+
+        The binder neither interprets nor stores the factory. M98 assumes
+        temporary runtime ownership for the one execution.
+        """
+        state = (
+            self._bridge
+            .start_with_credential_source_factory(
+                request,
+                credential_source_factory,
+                remote_image_source,
+            )
         )
 
-        return state
+        return self._publish_started_state(
+            state
+        )
 
     def request_cancel(
         self,
