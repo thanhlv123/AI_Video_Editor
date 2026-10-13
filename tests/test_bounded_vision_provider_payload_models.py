@@ -503,6 +503,11 @@ class BoundedVisionProviderPayloadModelTests(
                 "BoundedVisionProviderPayload",
                 "VisionProviderPayloadEncoding",
                 "validate_bounded_vision_provider_payload",
+                "BoundedVisionProviderPayloadFailureCode",
+                "BoundedVisionProviderPayloadOutcome",
+                "BoundedVisionProviderPayloadResult",
+                "validate_bounded_vision_provider_payload_result",
+                "BoundedVisionProviderPayloadRuntime",
             ),
         )
 
