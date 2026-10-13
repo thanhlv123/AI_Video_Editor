@@ -1,4 +1,4 @@
-"""M87 external vision provider transport contract API."""
+"""M87 external vision provider transport API."""
 
 from .models import (
     EXTERNAL_VISION_TRANSPORT_SCHEMA_VERSION,
@@ -9,6 +9,14 @@ from .models import (
     ExternalVisionTransportResponseEncoding,
     validate_external_vision_transport_request,
     validate_external_vision_transport_response,
+)
+from .transport_contract import (
+    ExternalVisionTransport,
+    ExternalVisionTransportFailure,
+    ExternalVisionTransportFailureCode,
+)
+from .provider_bridge import (
+    ExternalVisionSemanticProvider,
 )
 
 
@@ -21,4 +29,8 @@ __all__ = (
     "ExternalVisionTransportResponseEncoding",
     "validate_external_vision_transport_request",
     "validate_external_vision_transport_response",
+    "ExternalVisionTransport",
+    "ExternalVisionTransportFailure",
+    "ExternalVisionTransportFailureCode",
+    "ExternalVisionSemanticProvider",
 )

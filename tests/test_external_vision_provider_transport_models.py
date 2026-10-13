@@ -523,6 +523,10 @@ class ExternalVisionProviderTransportModelTests(
                 "ExternalVisionTransportResponseEncoding",
                 "validate_external_vision_transport_request",
                 "validate_external_vision_transport_response",
+                "ExternalVisionTransport",
+                "ExternalVisionTransportFailure",
+                "ExternalVisionTransportFailureCode",
+                "ExternalVisionSemanticProvider",
             ),
         )
 
