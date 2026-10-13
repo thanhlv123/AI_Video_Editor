@@ -13,9 +13,14 @@ Runtime-only dependencies such as:
 
 - check/cancellation callback;
 - remote image source;
+- optional M100 credential_source_factory;
 
-are passed directly to ``run`` and are never stored in detached controller
+are passed directly to execution and are never stored in detached controller
 state.
+
+The original ``run`` path preserves the existing environment-backed provider
+credential behavior. M100 host integration may explicitly supply one runtime
+credential-source factory through ``run_with_credential_source_factory``.
 
 Caller-owned check exceptions are wrapped internally so they cannot be
 mistaken for errors emitted by M95 itself.
@@ -266,7 +271,51 @@ class ProviderDiagnosticsGuiController:
         check,
         remote_image_source=None,
     ):
-        """Execute one M95 request and publish one final M97 state."""
+        """
+        Execute one M95 request through the original environment-backed
+        provider credential path and publish one final M97 state.
+        """
+        return self._run(
+            request,
+            check,
+            remote_image_source,
+            credential_source_factory=None,
+            use_credential_source_factory=False,
+        )
+
+    def run_with_credential_source_factory(
+        self,
+        request,
+        check,
+        credential_source_factory,
+        remote_image_source=None,
+    ):
+        """
+        Execute one M95 request using one caller-supplied runtime credential
+        source factory and publish one final M97 state.
+
+        The factory is runtime-only authority. It is forwarded directly to M95
+        and is never stored in the immutable M97 controller state.
+        """
+        return self._run(
+            request,
+            check,
+            remote_image_source,
+            credential_source_factory=(
+                credential_source_factory
+            ),
+            use_credential_source_factory=True,
+        )
+
+    def _run(
+        self,
+        request,
+        check,
+        remote_image_source,
+        *,
+        credential_source_factory,
+        use_credential_source_factory,
+    ):
         self._begin()
 
         guarded_check = _guard_check(
@@ -278,13 +327,25 @@ class ProviderDiagnosticsGuiController:
                 ProviderDiagnosticsApplicationService()
             )
 
-            application_result = (
-                application_service.run(
-                    request,
-                    guarded_check,
-                    remote_image_source,
+            if use_credential_source_factory:
+                application_result = (
+                    application_service
+                    .run_with_credential_source_factory(
+                        request,
+                        guarded_check,
+                        credential_source_factory,
+                        remote_image_source,
+                    )
                 )
-            )
+
+            else:
+                application_result = (
+                    application_service.run(
+                        request,
+                        guarded_check,
+                        remote_image_source,
+                    )
+                )
 
         except _CallerCheckFailure as exc:
             return self._handle_caller_check_failure(
