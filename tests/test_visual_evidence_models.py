@@ -523,6 +523,7 @@ class VisualEvidenceModelTests(unittest.TestCase):
                 "VisualEvidenceResult",
                 "validate_visual_evidence_observation",
                 "validate_visual_evidence_result",
+                "VisualEvidenceObservationRuntime",
             ),
         )
 

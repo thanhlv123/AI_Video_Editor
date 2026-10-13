@@ -10,6 +10,7 @@ from .models import (
     validate_visual_evidence_observation,
     validate_visual_evidence_result,
 )
+from .runtime import VisualEvidenceObservationRuntime
 
 
 __all__ = (
@@ -21,4 +22,5 @@ __all__ = (
     "VisualEvidenceResult",
     "validate_visual_evidence_observation",
     "validate_visual_evidence_result",
+    "VisualEvidenceObservationRuntime",
 )
