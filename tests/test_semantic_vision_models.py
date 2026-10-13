@@ -689,6 +689,15 @@ class SemanticVisionModelTests(unittest.TestCase):
                 "validate_semantic_label",
                 "validate_semantic_vision_observation",
                 "validate_semantic_vision_result",
+                "SEMANTIC_VISION_ADAPTER_SCHEMA_VERSION",
+                "SemanticVisionAdapterRequest",
+                "SemanticVisionAdapterResponse",
+                "validate_semantic_vision_adapter_request",
+                "validate_semantic_vision_adapter_response",
+                "SemanticVisionProvider",
+                "SemanticVisionProviderFailure",
+                "SemanticVisionProviderFailureCode",
+                "SemanticVisionObservationRuntime",
             ),
         )
 
