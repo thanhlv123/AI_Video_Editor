@@ -45,6 +45,10 @@ from creator_studio.provider_diagnostics_application.public_api import (
 from creator_studio.provider_diagnostics_gui_controller.public_api import (
     ProviderDiagnosticsGuiControllerPhase,
 )
+from creator_studio.provider_diagnostics_host.gui_api import (
+    ProviderDiagnosticsRemoteImageSource,
+    ProviderDiagnosticsRequestBuilder,
+)
 from creator_studio.provider_diagnostics_host.runtime_api import (
     ProviderDiagnosticsHost,
 )
@@ -86,6 +90,17 @@ def openai_profile(
         "env_var": environment_variable,
         "base_url": "",
         "model": "",
+        "enabled": True,
+    }
+
+
+def kie_profile():
+    return {
+        "id": "kie_ai",
+        "name": "KIE AI",
+        "env_var": "KIE_API_KEY",
+        "base_url": "",
+        "model": "gpt-6-luna",
         "enabled": True,
     }
 
@@ -340,6 +355,104 @@ class ProviderDiagnosticsHostIntegrationTests(
                 self.bridge
             ),
         )
+
+    def test_kie_offline_gui_runtime_marker_completes_ready_without_resolution(
+        self,
+    ):
+        secret = (
+            "unique-m100-kie-gui-secret-57721"
+        )
+
+        source = (
+            ProviderDiagnosticsRemoteImageSource()
+        )
+
+        with (
+            patch.object(
+                APIKeyManager,
+                "get_profile",
+                return_value=kie_profile(),
+            ) as get_profile,
+            patch.object(
+                APIKeyManager,
+                "get_secret",
+                return_value=secret,
+            ) as get_secret,
+            patch.object(
+                APIKeyManager,
+                "runtime_environment",
+                side_effect=AssertionError(
+                    "host diagnostics must not load all secrets"
+                ),
+            ) as runtime_environment,
+            patch.object(
+                ProviderDiagnosticsRemoteImageSource,
+                "resolve",
+                side_effect=AssertionError(
+                    "provider diagnostics must not resolve media"
+                ),
+            ) as resolve,
+            patch.object(
+                probe_module,
+                "_open_https",
+            ) as opened,
+        ):
+            request = (
+                ProviderDiagnosticsRequestBuilder()
+                .build_kie(
+                    self.manager,
+                    ProviderRuntimeDiagnosticMode
+                    .OFFLINE,
+                )
+            )
+
+            initial, final = (
+                self._run_host(
+                    request,
+                    source,
+                )
+            )
+
+        self.assertIs(
+            initial.phase,
+            ProviderDiagnosticsGuiControllerPhase
+            .RUNNING,
+        )
+
+        self.assertIs(
+            final.phase,
+            ProviderDiagnosticsGuiControllerPhase
+            .COMPLETED,
+        )
+
+        self.assertIsNotNone(
+            final.view_model
+        )
+
+        self.assertTrue(
+            final.view_model.is_ready
+        )
+
+        self.assertEqual(
+            get_profile.call_count,
+            2,
+        )
+
+        get_secret.assert_called_once_with(
+            "kie_ai"
+        )
+
+        runtime_environment.assert_not_called()
+        resolve.assert_not_called()
+        opened.assert_not_called()
+
+        self.assertNotIn(
+            secret,
+            repr(
+                final
+            ),
+        )
+
 
     def test_online_real_stack_runs_readiness_then_authenticated_connectivity(
         self,

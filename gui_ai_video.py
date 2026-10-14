@@ -6,6 +6,7 @@ import sys
 from PyQt6.QtCore import (
     QProcess,
     QProcessEnvironment,
+    QTimer,
     Qt,
 )
 
@@ -33,6 +34,10 @@ from PyQt6.QtWidgets import (
 from config.api_key_manager import APIKeyManager
 from api_keys_dialog import APIKeysDialog
 
+from creator_studio.provider_diagnostics_host.gui_api import (
+    ProviderDiagnosticsRemoteImageSource,
+    ProviderDiagnosticsRequestBuilder,
+)
 from creator_studio.provider_diagnostics_host.runtime_api import (
     ProviderDiagnosticsHost,
 )
@@ -44,6 +49,12 @@ from creator_studio.provider_diagnostics_qt_view.binding_api import (
 )
 from creator_studio.provider_diagnostics_qt_worker.public_api import (
     ProviderDiagnosticsQtThreadBridge,
+)
+from creator_studio.provider_diagnostics_view_model.public_api import (
+    ProviderDiagnosticsViewAction,
+)
+from creator_studio.provider_runtime_diagnostics.public_api import (
+    ProviderRuntimeDiagnosticMode,
 )
 
 
@@ -76,6 +87,8 @@ class AIVideoEditorGUI(QMainWindow):
         self.audio_path = None
         self.output_path = None
         self.last_success_output = None
+        self._pipeline_stop_requested = False
+        self._pipeline_close_requested = False
 
         self.api_manager = APIKeyManager(
             ROOT
@@ -84,6 +97,12 @@ class AIVideoEditorGUI(QMainWindow):
         self.provider_diagnostics_host = (
             ProviderDiagnosticsHost()
         )
+
+        self.provider_diagnostics_request_builder = (
+            ProviderDiagnosticsRequestBuilder()
+        )
+
+        self._provider_diagnostics_close_pending = False
 
         self.provider_diagnostics_view = (
             ProviderDiagnosticsQtView(
@@ -128,6 +147,12 @@ class AIVideoEditorGUI(QMainWindow):
         )
 
         self._build_ui()
+
+        self._connect_provider_diagnostics()
+
+        self.provider_diagnostics_view.setEnabled(
+            True
+        )
 
         self.refresh_api_status()
         self.refresh_stock_status()
@@ -781,10 +806,215 @@ class AIVideoEditorGUI(QMainWindow):
 
 
     # ==================================================
+    # PROVIDER DIAGNOSTICS
+    # ==================================================
+
+    def _connect_provider_diagnostics(
+        self,
+    ):
+
+        self.provider_diagnostics_binder.run_requested.connect(
+            self.run_provider_diagnostics
+        )
+
+        self.provider_diagnostics_binder.action_requested.connect(
+            self._handle_provider_diagnostics_action
+        )
+
+        self.provider_diagnostics_binder.fatal.connect(
+            self._on_provider_diagnostics_fatal
+        )
+
+        self.provider_diagnostics_binder.finished.connect(
+            self._on_provider_diagnostics_finished
+        )
+
+
+    def run_provider_diagnostics(
+        self,
+    ):
+
+        if (
+            self.provider_diagnostics_binder
+            .is_running
+        ):
+
+            return
+
+        if (
+            self.process is not None
+            and
+            self.process.state()
+            != QProcess.ProcessState.NotRunning
+        ):
+
+            QMessageBox.information(
+                self,
+                "Pipeline đang chạy",
+                (
+                    "Hãy chờ pipeline kết thúc trước "
+                    "khi chạy Provider Diagnostics."
+                ),
+            )
+
+            return
+
+        try:
+
+            request = (
+                self.provider_diagnostics_request_builder
+                .build_kie(
+                    self.api_manager,
+                    ProviderRuntimeDiagnosticMode
+                    .ONLINE,
+                )
+            )
+
+            remote_image_source = (
+                ProviderDiagnosticsRemoteImageSource()
+            )
+
+            self._set_provider_diagnostics_running_ui(
+                True
+            )
+
+            self.provider_diagnostics_host.start(
+                self.api_manager,
+                self.provider_diagnostics_binder,
+                request,
+                remote_image_source,
+            )
+
+        except Exception:
+
+            self._set_provider_diagnostics_running_ui(
+                False
+            )
+
+            try:
+
+                self.provider_diagnostics_view.bind_state(
+                    self.provider_diagnostics_bridge.state
+                )
+
+            except Exception:
+
+                self.provider_diagnostics_view.reset()
+
+            QMessageBox.warning(
+                self,
+                "Provider Diagnostics",
+                (
+                    "Không thể khởi động chẩn đoán provider.\n\n"
+                    "Hãy kiểm tra cấu hình KIE AI rồi thử lại."
+                ),
+            )
+
+
+    def _handle_provider_diagnostics_action(
+        self,
+        action,
+    ):
+
+        if (
+            action
+            is ProviderDiagnosticsViewAction
+            .CONFIGURE_CREDENTIAL
+        ):
+
+            self.open_api_settings()
+
+
+    def _on_provider_diagnostics_fatal(
+        self,
+    ):
+
+        self.append_log(
+            "Provider Diagnostics: internal failure."
+        )
+
+
+    def _on_provider_diagnostics_finished(
+        self,
+        state,
+    ):
+
+        self._set_provider_diagnostics_running_ui(
+            False
+        )
+
+        if not self._provider_diagnostics_close_pending:
+
+            return
+
+        self._provider_diagnostics_close_pending = False
+
+        QTimer.singleShot(
+            0,
+            self.close,
+        )
+
+
+    def _set_provider_diagnostics_running_ui(
+        self,
+        running,
+    ):
+
+        enabled = not running
+
+        self.start_button.setEnabled(
+            enabled
+        )
+
+        self.audio_button.setEnabled(
+            enabled
+        )
+
+        self.output_button.setEnabled(
+            enabled
+        )
+
+        self.api_settings_button.setEnabled(
+            enabled
+        )
+
+        self.pexels_check.setEnabled(
+            enabled
+        )
+
+        self.pixabay_check.setEnabled(
+            enabled
+        )
+
+        self.audio_edit.setEnabled(
+            enabled
+        )
+
+        self.output_edit.setEnabled(
+            enabled
+        )
+
+        self.stop_button.setEnabled(
+            False
+        )
+
+        self.provider_diagnostics_view.setEnabled(
+            True
+        )
+
+
+    # ==================================================
     # API SETTINGS
     # ==================================================
 
     def open_api_settings(self):
+
+        if (
+            self.provider_diagnostics_binder
+            .is_running
+        ):
+
+            return
 
         dialog = APIKeysDialog(
             manager=self.api_manager,
@@ -1220,6 +1450,22 @@ class AIVideoEditorGUI(QMainWindow):
 
     def start_pipeline(self):
 
+        if (
+            self.provider_diagnostics_binder
+            .is_running
+        ):
+
+            QMessageBox.information(
+                self,
+                "Provider Diagnostics đang chạy",
+                (
+                    "Hãy chờ Provider Diagnostics kết thúc "
+                    "trước khi chạy pipeline."
+                ),
+            )
+
+            return
+
         if not self.validate_inputs():
 
             return
@@ -1241,6 +1487,8 @@ class AIVideoEditorGUI(QMainWindow):
             return
 
 
+        self._pipeline_stop_requested = False
+        self._pipeline_close_requested = False
         self.last_success_output = None
 
         self.open_video_button.setEnabled(
@@ -1556,6 +1804,41 @@ class AIVideoEditorGUI(QMainWindow):
             False
         )
 
+        stop_requested = (
+            self._pipeline_stop_requested
+        )
+
+        close_requested = (
+            self._pipeline_close_requested
+        )
+
+        self._pipeline_stop_requested = False
+        self._pipeline_close_requested = False
+
+        if close_requested:
+
+            return
+
+        if stop_requested:
+
+            self.stage_text.setText(
+                "Đã dừng"
+            )
+
+            self.status_text.setText(
+                "Pipeline đã được dừng theo yêu cầu."
+            )
+
+            self.append_log(
+                ""
+            )
+
+            self.append_log(
+                "Pipeline stopped by user."
+            )
+
+            return
+
         success = (
             exit_code == 0
             and
@@ -1610,7 +1893,9 @@ class AIVideoEditorGUI(QMainWindow):
                 "Pipeline đã dừng."
             )
 
-            self.append_log("")
+            self.append_log(
+                ""
+            )
 
             self.append_log(
                 f"Process exit code: {exit_code}"
@@ -1635,6 +1920,19 @@ class AIVideoEditorGUI(QMainWindow):
         self,
         error,
     ):
+
+        if (
+            error
+            == QProcess.ProcessError.Crashed
+            and
+            (
+                self._pipeline_stop_requested
+                or
+                self._pipeline_close_requested
+            )
+        ):
+
+            return
 
         self.append_log(
             f"QProcess error: {error}"
@@ -1674,6 +1972,8 @@ class AIVideoEditorGUI(QMainWindow):
 
             return
 
+        self._pipeline_stop_requested = True
+
         self.status_text.setText(
             "Đang dừng..."
         )
@@ -1685,6 +1985,24 @@ class AIVideoEditorGUI(QMainWindow):
         ):
 
             self.process.kill()
+
+            self.process.waitForFinished(
+                3000
+            )
+
+        if (
+            self.process.state()
+            != QProcess.ProcessState.NotRunning
+        ):
+
+            QMessageBox.warning(
+                self,
+                "Không thể dừng pipeline",
+                (
+                    "Pipeline vẫn chưa dừng hoàn toàn.\n\n"
+                    "Hãy chờ một chút rồi thử lại."
+                ),
+            )
 
 
     # ==================================================
@@ -1786,6 +2104,10 @@ class AIVideoEditorGUI(QMainWindow):
             running
         )
 
+        self.provider_diagnostics_view.setEnabled(
+            not running
+        )
+
 
     # ==================================================
     # LOG
@@ -1813,6 +2135,40 @@ class AIVideoEditorGUI(QMainWindow):
         self._save_gui_settings()
 
         if (
+            self.provider_diagnostics_binder
+            .is_running
+        ):
+
+            if self._provider_diagnostics_close_pending:
+
+                event.ignore()
+                return
+
+            answer = QMessageBox.question(
+                self,
+                "Provider Diagnostics đang chạy",
+                (
+                    "Provider Diagnostics vẫn đang chạy.\n\n"
+                    "Bạn có muốn hủy chẩn đoán và đóng chương trình?"
+                ),
+            )
+
+            if (
+                answer
+                != QMessageBox.StandardButton.Yes
+            ):
+
+                event.ignore()
+                return
+
+            self._provider_diagnostics_close_pending = True
+
+            self.provider_diagnostics_binder.request_cancel()
+
+            event.ignore()
+            return
+
+        if (
             self.process is not None
             and
             self.process.state()
@@ -1836,6 +2192,8 @@ class AIVideoEditorGUI(QMainWindow):
                 event.ignore()
                 return
 
+            self._pipeline_close_requested = True
+
             self.process.terminate()
 
             self.process.waitForFinished(
@@ -1848,6 +2206,27 @@ class AIVideoEditorGUI(QMainWindow):
             ):
 
                 self.process.kill()
+
+                self.process.waitForFinished(
+                    3000
+                )
+
+            if (
+                self.process.state()
+                != QProcess.ProcessState.NotRunning
+            ):
+
+                QMessageBox.warning(
+                    self,
+                    "Không thể đóng chương trình",
+                    (
+                        "Pipeline vẫn chưa dừng hoàn toàn.\n\n"
+                        "Hãy chờ tiến trình kết thúc rồi thử đóng lại."
+                    ),
+                )
+
+                event.ignore()
+                return
 
         event.accept()
 

@@ -1,11 +1,8 @@
-"""M100 3A-1 main-window provider diagnostics composition tests.
+"""M100 main-window provider diagnostics composition tests.
 
-This checkpoint verifies composition only.
-
-The main window may construct the M100/M99/M98 diagnostics objects and place
-the M99 view into the existing API Providers section, but it must not start a
-diagnostic run yet. Request assembly and user-intent wiring belong to later
-M100 3A checkpoints.
+The main window owns the M100/M99/M98 diagnostics components, the secret-free
+request builder, and the M99 view placement. Construction itself must not
+start diagnostics or materialize runtime credentials.
 """
 
 import tempfile
@@ -21,6 +18,9 @@ import gui_ai_video as gui_module
 
 from creator_studio.provider_diagnostics_gui_controller.public_api import (
     ProviderDiagnosticsGuiControllerPhase,
+)
+from creator_studio.provider_diagnostics_host.gui_api import (
+    ProviderDiagnosticsRequestBuilder,
 )
 from creator_studio.provider_diagnostics_host.runtime_api import (
     ProviderDiagnosticsHost,
@@ -82,7 +82,7 @@ class FakeAPIKeyManager:
         self.runtime_environment_calls += 1
 
         raise AssertionError(
-            "M100 3A-1 composition must not load runtime credentials"
+            "GUI composition must not load runtime credentials"
         )
 
 
@@ -122,7 +122,7 @@ class ProviderDiagnosticsMainWindowCompositionTests(
             ProviderDiagnosticsHost,
             "start",
             side_effect=AssertionError(
-                "M100 3A-1 must not start diagnostics"
+                "GUI composition must not start diagnostics"
             ),
         )
 
@@ -159,6 +159,14 @@ class ProviderDiagnosticsMainWindowCompositionTests(
                 .provider_diagnostics_host
             ),
             ProviderDiagnosticsHost,
+        )
+
+        self.assertIs(
+            type(
+                self.window
+                .provider_diagnostics_request_builder
+            ),
+            ProviderDiagnosticsRequestBuilder,
         )
 
         self.assertIs(
@@ -251,10 +259,10 @@ class ProviderDiagnosticsMainWindowCompositionTests(
             0,
         )
 
-    def test_checkpoint_keeps_diagnostics_view_disabled_until_request_wiring(
+    def test_diagnostics_view_is_enabled_after_wiring(
         self,
     ):
-        self.assertFalse(
+        self.assertTrue(
             self.window
             .provider_diagnostics_view
             .isEnabled()
