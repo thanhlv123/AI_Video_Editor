@@ -33,6 +33,19 @@ from PyQt6.QtWidgets import (
 from config.api_key_manager import APIKeyManager
 from api_keys_dialog import APIKeysDialog
 
+from creator_studio.provider_diagnostics_host.runtime_api import (
+    ProviderDiagnosticsHost,
+)
+from creator_studio.provider_diagnostics_qt_view.public_api import (
+    ProviderDiagnosticsQtView,
+)
+from creator_studio.provider_diagnostics_qt_view.binding_api import (
+    ProviderDiagnosticsQtViewBinder,
+)
+from creator_studio.provider_diagnostics_qt_worker.public_api import (
+    ProviderDiagnosticsQtThreadBridge,
+)
+
 
 # ==================================================
 # PROJECT
@@ -66,6 +79,34 @@ class AIVideoEditorGUI(QMainWindow):
 
         self.api_manager = APIKeyManager(
             ROOT
+        )
+
+        self.provider_diagnostics_host = (
+            ProviderDiagnosticsHost()
+        )
+
+        self.provider_diagnostics_view = (
+            ProviderDiagnosticsQtView(
+                parent=self
+            )
+        )
+
+        self.provider_diagnostics_bridge = (
+            ProviderDiagnosticsQtThreadBridge(
+                parent=self
+            )
+        )
+
+        self.provider_diagnostics_binder = (
+            ProviderDiagnosticsQtViewBinder(
+                self.provider_diagnostics_view,
+                self.provider_diagnostics_bridge,
+                parent=self,
+            )
+        )
+
+        self.provider_diagnostics_view.setEnabled(
+            False
         )
 
         self.gui_settings = (
@@ -464,6 +505,10 @@ class AIVideoEditorGUI(QMainWindow):
 
         main_layout.addLayout(
             api_row
+        )
+
+        main_layout.addWidget(
+            self.provider_diagnostics_view
         )
 
 
