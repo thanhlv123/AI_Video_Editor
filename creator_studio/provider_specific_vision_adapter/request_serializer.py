@@ -383,10 +383,7 @@ def _serialize_kie_request(
     remote_image_url,
 ):
     if (
-        profile.request_dialect
-        is not VisionProviderRequestDialect
-        .KIE_OPENAI_CHAT_COMPLETIONS_V1
-        or profile.image_input_mode
+        profile.image_input_mode
         is not VisionProviderImageInputMode
         .REMOTE_URL
     ):
@@ -407,30 +404,71 @@ def _serialize_kie_request(
         )
     )
 
-    return {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            SEMANTIC_VISION_PROVIDER_PROMPT
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": (
+    dialect = profile.request_dialect
+
+    if (
+        dialect
+        is VisionProviderRequestDialect
+        .KIE_OPENAI_CHAT_COMPLETIONS_V1
+    ):
+        return {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                SEMANTIC_VISION_PROVIDER_PROMPT
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    remote_image_url
+                                ),
+                            },
+                        },
+                    ],
+                }
+            ],
+            "stream": False,
+        }
+
+    if (
+        dialect
+        is VisionProviderRequestDialect
+        .KIE_OPENAI_RESPONSES_V1
+    ):
+        return {
+            "model": profile.model,
+            "stream": False,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                SEMANTIC_VISION_PROVIDER_PROMPT
+                            ),
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": (
                                 remote_image_url
                             ),
                         },
-                    },
-                ],
-            }
-        ],
-        "stream": False,
-    }
+                    ],
+                }
+            ],
+        }
+
+    raise _ProviderRequestSerializeFailure(
+        _ProviderRequestSerializeFailureCode
+        .PROFILE_COHERENCE_INVALID
+    )
 
 
 def _serialize_provider_request(

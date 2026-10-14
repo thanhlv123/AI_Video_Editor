@@ -40,6 +40,9 @@ class VisionProviderRequestDialect(str, Enum):
     KIE_OPENAI_CHAT_COMPLETIONS_V1 = (
         "KIE_OPENAI_CHAT_COMPLETIONS_V1"
     )
+    KIE_OPENAI_RESPONSES_V1 = (
+        "KIE_OPENAI_RESPONSES_V1"
+    )
 
 
 class VisionProviderResponseDialect(str, Enum):
@@ -51,6 +54,9 @@ class VisionProviderResponseDialect(str, Enum):
     )
     KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1 = (
         "KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1"
+    )
+    KIE_RESPONSES_OUTPUT_TEXT_V1 = (
+        "KIE_RESPONSES_OUTPUT_TEXT_V1"
     )
 
 
@@ -278,33 +284,9 @@ def _validate_provider_coherence(
             raise ValueError()
 
         if (
-            not parsed_endpoint.path.startswith(
-                "/"
-            )
-            or not parsed_endpoint.path.endswith(
-                "/v1/chat/completions"
-            )
-        ):
-            raise ValueError()
-
-        if (
             profile.credential_header
             is not ExternalVisionHTTPCredentialHeader
             .AUTHORIZATION
-        ):
-            raise ValueError()
-
-        if (
-            profile.request_dialect
-            is not VisionProviderRequestDialect
-            .KIE_OPENAI_CHAT_COMPLETIONS_V1
-        ):
-            raise ValueError()
-
-        if (
-            profile.response_dialect
-            is not VisionProviderResponseDialect
-            .KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1
         ):
             raise ValueError()
 
@@ -315,7 +297,50 @@ def _validate_provider_coherence(
         ):
             raise ValueError()
 
-        return
+        path = parsed_endpoint.path
+
+        if (
+            path.startswith(
+                "/"
+            )
+            and path.endswith(
+                "/v1/chat/completions"
+            )
+        ):
+            if (
+                profile.request_dialect
+                is not VisionProviderRequestDialect
+                .KIE_OPENAI_CHAT_COMPLETIONS_V1
+            ):
+                raise ValueError()
+
+            if (
+                profile.response_dialect
+                is not VisionProviderResponseDialect
+                .KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1
+            ):
+                raise ValueError()
+
+            return
+
+        if path == "/openai/v1/responses":
+            if (
+                profile.request_dialect
+                is not VisionProviderRequestDialect
+                .KIE_OPENAI_RESPONSES_V1
+            ):
+                raise ValueError()
+
+            if (
+                profile.response_dialect
+                is not VisionProviderResponseDialect
+                .KIE_RESPONSES_OUTPUT_TEXT_V1
+            ):
+                raise ValueError()
+
+            return
+
+        raise ValueError()
 
     raise ValueError()
 

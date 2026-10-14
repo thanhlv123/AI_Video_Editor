@@ -439,6 +439,143 @@ def _extract_kie_text(
     )
 
 
+def _extract_kie_responses_text(
+    document,
+    check,
+):
+    _require_dict(
+        document
+    )
+
+    # Kie may return an API-level error object while the HTTP layer itself
+    # returned status 200.
+    if "code" in document:
+        code = document.get(
+            "code"
+        )
+
+        if (
+            type(code) is not int
+            or code != 200
+        ):
+            raise _ProviderResponseExtractFailure(
+                _ProviderResponseExtractFailureCode
+                .PROVIDER_RESPONSE_INVALID
+            )
+
+    if (
+        "status" in document
+        and document.get(
+            "status"
+        ) != "completed"
+    ):
+        raise _ProviderResponseExtractFailure(
+            _ProviderResponseExtractFailureCode
+            .PROVIDER_RESPONSE_INVALID
+        )
+
+    output = _require_list(
+        document.get(
+            "output"
+        )
+    )
+
+    if not output:
+        raise _ProviderResponseExtractFailure(
+            _ProviderResponseExtractFailureCode
+            .PROVIDER_RESPONSE_INVALID
+        )
+
+    text_parts = []
+    refusal_seen = False
+
+    for item in output:
+        check()
+
+        item = _require_dict(
+            item
+        )
+
+        item_type = item.get(
+            "type"
+        )
+
+        # Responses-compatible Kie output can include non-message items such
+        # as reasoning records.
+        if item_type != "message":
+            continue
+
+        if (
+            "role" in item
+            and item.get(
+                "role"
+            ) != "assistant"
+        ):
+            raise _ProviderResponseExtractFailure(
+                _ProviderResponseExtractFailureCode
+                .PROVIDER_RESPONSE_INVALID
+            )
+
+        if (
+            "status" in item
+            and item.get(
+                "status"
+            ) != "completed"
+        ):
+            raise _ProviderResponseExtractFailure(
+                _ProviderResponseExtractFailureCode
+                .PROVIDER_RESPONSE_INVALID
+            )
+
+        content = _require_list(
+            item.get(
+                "content"
+            )
+        )
+
+        for part in content:
+            check()
+
+            part = _require_dict(
+                part
+            )
+
+            part_type = part.get(
+                "type"
+            )
+
+            if part_type == "refusal":
+                refusal_seen = True
+                continue
+
+            if part_type != "output_text":
+                continue
+
+            text_parts.append(
+                _require_text(
+                    part.get(
+                        "text"
+                    )
+                )
+            )
+
+    if refusal_seen:
+        raise _ProviderResponseExtractFailure(
+            _ProviderResponseExtractFailureCode
+            .OUTPUT_INVALID
+        )
+
+    if not text_parts:
+        raise _ProviderResponseExtractFailure(
+            _ProviderResponseExtractFailureCode
+            .OUTPUT_INVALID
+        )
+
+    return "\n".join(
+        text_parts
+    )
+
+
 def _build_normalized_response(
     text,
     check,
@@ -637,6 +774,16 @@ def _extract_provider_response(
         .KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1
     ):
         extracted = _extract_kie_text(
+            document,
+            check,
+        )
+
+    elif (
+        dialect
+        is VisionProviderResponseDialect
+        .KIE_RESPONSES_OUTPUT_TEXT_V1
+    ):
+        extracted = _extract_kie_responses_text(
             document,
             check,
         )

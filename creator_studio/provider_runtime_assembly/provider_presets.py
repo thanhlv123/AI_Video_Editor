@@ -18,6 +18,7 @@ No API secret is accepted by any preset builder.
 """
 
 import dataclasses
+from urllib.parse import urlsplit
 
 from ..external_vision_http_transport import (
     ExternalVisionHTTPConfig,
@@ -237,10 +238,48 @@ def build_kie_runtime_config(
     """
     Build one Kie.ai runtime configuration.
 
-    The endpoint is explicit because the M89 Kie profile contract permits
-    provider routes ending in /v1/chat/completions rather than one single
-    fixed route.
+    The endpoint is explicit because Kie supports more than one compatible
+    provider route. Existing Chat Completions routes remain supported, while
+    the production OpenAI-compatible Responses route receives its matching
+    M89 request/response dialect pair.
     """
+    try:
+        parsed_endpoint = urlsplit(
+            endpoint
+        )
+
+        if (
+            type(endpoint) is str
+            and parsed_endpoint.path
+            == "/openai/v1/responses"
+        ):
+            request_dialect = (
+                VisionProviderRequestDialect
+                .KIE_OPENAI_RESPONSES_V1
+            )
+            response_dialect = (
+                VisionProviderResponseDialect
+                .KIE_RESPONSES_OUTPUT_TEXT_V1
+            )
+
+        else:
+            request_dialect = (
+                VisionProviderRequestDialect
+                .KIE_OPENAI_CHAT_COMPLETIONS_V1
+            )
+            response_dialect = (
+                VisionProviderResponseDialect
+                .KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1
+            )
+
+    except MemoryError:
+        raise
+
+    except Exception:
+        raise ValueError(
+            "provider_runtime_preset_invalid"
+        ) from None
+
     return _build_runtime_config(
         provider=(
             VisionProviderKind.KIE_AI
@@ -251,14 +290,8 @@ def build_kie_runtime_config(
             ExternalVisionHTTPCredentialHeader
             .AUTHORIZATION
         ),
-        request_dialect=(
-            VisionProviderRequestDialect
-            .KIE_OPENAI_CHAT_COMPLETIONS_V1
-        ),
-        response_dialect=(
-            VisionProviderResponseDialect
-            .KIE_CHAT_CHOICES_MESSAGE_CONTENT_V1
-        ),
+        request_dialect=request_dialect,
+        response_dialect=response_dialect,
         image_input_mode=(
             VisionProviderImageInputMode
             .REMOTE_URL
