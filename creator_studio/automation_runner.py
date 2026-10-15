@@ -62,7 +62,9 @@ class AutomationPipelineCoordinator:
     M110.1.2 batches scene-intelligence requests, reuses safe project-local
     cache entries, and falls back deterministically when KIE is unavailable.
     M110.2 continues the same run through Pexels/Pixabay stock acquisition,
-    M106 asset promotion and M107 automatic scene assignment.
+    M106 asset promotion and M107 automatic scene assignment. M110.3 then
+    performs preview-only YouTube reference discovery for unresolved or weak
+    stock scenes without downloading YouTube audiovisual content.
     """
 
     project_root: Path
@@ -327,6 +329,7 @@ class AutomationPipelineCoordinator:
         unresolved_count: int,
         cache_hit_count: int = 0,
         provider_names: list[str] | tuple[str, ...] = (),
+        continue_to_youtube: bool = False,
     ) -> AutomationWorkflowState:
         total = max(0, int(total_search_scenes or 0))
         validated = max(0, int(validated_count or 0))
@@ -336,42 +339,169 @@ class AutomationPipelineCoordinator:
         source_text = f" Nguồn: {providers}." if providers else ""
         cache_text = f" Cache hit: {int(cache_hit_count)}." if cache_hit_count else ""
 
+        if not continue_to_youtube:
+            # Preserve the public M110.2 contract for historical regression tests
+            # and non-M110.3 callers.
+            if unresolved == 0:
+                self.state.mark_completed(
+                    "media_search",
+                    f"Pexels/Pixabay hoàn tất: {validated}/{total} cảnh có stock hợp lệ.{source_text}{cache_text}",
+                )
+                self.state.mark_completed(
+                    "media_assignment",
+                    f"Đã tự động gán tư liệu cho {assigned}/{total} cảnh tìm kiếm.",
+                )
+                self.state.message = (
+                    "Stock media đã hoàn tất. M110.3 sẽ bổ sung YouTube Reference làm nguồn fallback/tham chiếu; "
+                    "bước sản xuất tiếp theo là nhạc nền."
+                )
+            else:
+                self.state.mark_running(
+                    "media_search",
+                    (
+                        f"Pexels/Pixabay đã xử lý {validated}/{total} cảnh; "
+                        f"còn {unresolved} cảnh chưa có stock phù hợp và sẽ chuyển sang YouTube Reference ở M110.3."
+                        f"{source_text}{cache_text}"
+                    ),
+                    progress=95,
+                )
+                self.state.set_stage(
+                    "media_assignment",
+                    AutomationStageStatus.PENDING,
+                    detail=f"Đã có tư liệu cho {assigned}/{total} cảnh; chờ fallback cho {unresolved} cảnh.",
+                    progress=0,
+                )
+                self.state.message = (
+                    f"Pexels/Pixabay hoàn tất; còn {unresolved} cảnh chờ YouTube Reference M110.3."
+                )
+            self.status = AutomationRunStatus.WAITING
+            self.save()
+            return self.state
+
         if unresolved == 0:
-            self.state.mark_completed(
-                "media_search",
-                f"Pexels/Pixabay hoàn tất: {validated}/{total} cảnh có stock hợp lệ.{source_text}{cache_text}",
+            detail = (
+                f"Pexels/Pixabay đã có stock hợp lệ cho {validated}/{total} cảnh."
+                f"{source_text}{cache_text} Đang kiểm tra xem có cảnh chất lượng thấp cần YouTube Reference hay không."
             )
             self.state.mark_completed(
                 "media_assignment",
                 f"Đã tự động gán tư liệu cho {assigned}/{total} cảnh tìm kiếm.",
             )
-            self.state.message = (
-                "Stock media đã hoàn tất. M110.3 sẽ bổ sung YouTube Reference làm nguồn fallback/tham chiếu; "
-                "bước sản xuất tiếp theo là nhạc nền."
-            )
         else:
-            self.state.mark_running(
-                "media_search",
-                (
-                    f"Pexels/Pixabay đã xử lý {validated}/{total} cảnh; "
-                    f"còn {unresolved} cảnh chưa có stock phù hợp và sẽ chuyển sang YouTube Reference ở M110.3."
-                    f"{source_text}{cache_text}"
-                ),
-                progress=95,
+            detail = (
+                f"Pexels/Pixabay đã xử lý {validated}/{total} cảnh; còn {unresolved} cảnh chưa có stock phù hợp."
+                f"{source_text}{cache_text} Đang chuyển các cảnh cần thiết sang YouTube Reference."
             )
-            # Keep only media_search active.  Some scenes are already assigned, but the
-            # assignment stage is not complete until fallback providers resolve the rest.
             self.state.set_stage(
                 "media_assignment",
                 AutomationStageStatus.PENDING,
                 detail=f"Đã có tư liệu cho {assigned}/{total} cảnh; chờ fallback cho {unresolved} cảnh.",
                 progress=0,
             )
-            self.state.message = (
-                f"Pexels/Pixabay hoàn tất; còn {unresolved} cảnh chờ YouTube Reference M110.3."
-            )
 
-        self.status = AutomationRunStatus.WAITING
+        self.state.mark_running("media_search", detail, progress=95)
+        self.state.message = "Stock đã hoàn tất. Đang kiểm tra YouTube Reference cho các cảnh chưa tốt."
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_youtube_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        query: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        progress = max(96, min(99, 95 + int(round((current_i / total_i) * 4))))
+        detail = f"Đang tìm YouTube Reference · cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        if query:
+            detail += f" · {query}"
+        self.state.mark_running("media_search", detail, progress=progress)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_youtube_completed(
+        self,
+        *,
+        target_count: int,
+        searched_count: int,
+        reference_scene_count: int,
+        candidate_count: int,
+        chapter_segment_count: int,
+        unresolved_stock_count: int,
+        weak_stock_count: int,
+        missing_api_key: bool = False,
+        error_count: int = 0,
+        manifest_filename: str = "youtube_reference_manifest.json",
+    ) -> AutomationWorkflowState:
+        targets = max(0, int(target_count or 0))
+        refs = max(0, int(reference_scene_count or 0))
+        candidates = max(0, int(candidate_count or 0))
+        segments = max(0, int(chapter_segment_count or 0))
+        unresolved = max(0, int(unresolved_stock_count or 0))
+        weak = max(0, int(weak_stock_count or 0))
+        errors = max(0, int(error_count or 0))
+
+        if targets == 0:
+            self.state.mark_completed(
+                "media_search",
+                "Stock hiện tại đã đủ tốt; không cần mở rộng sang YouTube Reference.",
+            )
+            if unresolved == 0 and self.state.stage_status("media_assignment") != AutomationStageStatus.COMPLETED:
+                self.state.mark_completed("media_assignment", "Tư liệu stock đã được gán đầy đủ.")
+            self.state.message = "Tư liệu hình ảnh/video đã hoàn tất. Bước tiếp theo là nhạc nền."
+            self.status = AutomationRunStatus.WAITING
+        elif missing_api_key:
+            detail = (
+                f"YouTube Reference chưa được chạy vì chưa cấu hình YOUTUBE_API_KEY · "
+                f"{weak} cảnh stock dưới ngưỡng · {unresolved} cảnh chưa có stock phù hợp."
+            )
+            self.state.mark_running("media_search", detail, progress=95)
+            self.state.message = (
+                "Cần cấu hình YOUTUBE_API_KEY để hoàn tất kiểm tra các cảnh stock yếu/chưa đủ."
+            )
+            self.status = AutomationRunStatus.WAITING
+        elif errors > 0:
+            detail = (
+                f"YouTube Reference gặp lỗi ở {errors}/{targets} cảnh · "
+                f"đã tìm {refs} cảnh có reference · {candidates} ứng viên · "
+                f"{segments} đoạn timestamp. Stock render hiện có vẫn được giữ."
+            )
+            self.state.mark_running("media_search", detail, progress=99)
+            self.state.message = (
+                f"YouTube Reference chưa hoàn tất. Xem {manifest_filename} để biết HTTP/network reason rồi thử lại."
+            )
+            self.status = AutomationRunStatus.WAITING
+        elif unresolved > 0:
+            self.state.mark_running(
+                "media_search",
+                (
+                    f"YouTube đã tìm reference cho {refs}/{targets} cảnh · {candidates} ứng viên · "
+                    f"{segments} đoạn có timestamp. Còn {unresolved} cảnh chưa có render asset; "
+                    "M110.4 sẽ dùng reference để cải thiện truy vấn và tìm lại stock."
+                ),
+                progress=99,
+            )
+            self.state.message = f"YouTube Reference đã lưu: {manifest_filename}. Chờ M110.4 re-search stock."
+            self.status = AutomationRunStatus.WAITING
+        else:
+            detail = (
+                f"YouTube Reference hoàn tất cho {refs}/{targets} cảnh cần kiểm tra · "
+                f"{candidates} ứng viên · {segments} đoạn timestamp."
+            )
+            self.state.mark_completed("media_search", detail)
+            if self.state.stage_status("media_assignment") != AutomationStageStatus.COMPLETED:
+                self.state.mark_completed("media_assignment", "Tư liệu stock hiện tại đã được gán đầy đủ.")
+            self.state.message = "Tư liệu hình ảnh/video đã hoàn tất. Bước tiếp theo là nhạc nền."
+            self.status = AutomationRunStatus.WAITING
+
         self.save()
         return self.state
 
