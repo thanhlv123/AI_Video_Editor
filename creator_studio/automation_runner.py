@@ -505,6 +505,102 @@ class AutomationPipelineCoordinator:
         self.save()
         return self.state
 
+
+    def media_ranking_started(self, *, total_scene_count: int = 0) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        detail = "Đang xếp hạng thống nhất giữa stock và YouTube Reference..."
+        if total:
+            detail += f" {total} cảnh."
+        self.state.mark_running("media_search", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_ranking_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        action: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        action_text = {
+            "keep_stock": "Giữ stock",
+            "reference_guided_research": "Reference hướng dẫn tìm lại",
+            "broaden_stock_search": "Mở rộng tìm stock",
+        }.get(str(action or "").strip(), "Đang đánh giá")
+        detail = f"Xếp hạng tư liệu · cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        detail += f" · {action_text}"
+        self.state.mark_running("media_search", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_ranking_completed(
+        self,
+        *,
+        total_scene_count: int,
+        keep_stock_count: int,
+        reference_guided_count: int,
+        broaden_search_count: int,
+        render_ready_count: int,
+        unresolved_render_count: int,
+        manifest_filename: str = "media_ranking_manifest.json",
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        keep = max(0, int(keep_stock_count or 0))
+        guided = max(0, int(reference_guided_count or 0))
+        broaden = max(0, int(broaden_search_count or 0))
+        ready = max(0, int(render_ready_count or 0))
+        unresolved = max(0, int(unresolved_render_count or 0))
+        research = guided + broaden
+
+        if unresolved == 0:
+            if self.state.stage_status("media_assignment") != AutomationStageStatus.COMPLETED:
+                self.state.mark_completed(
+                    "media_assignment",
+                    f"Đã có render-safe stock cho {ready}/{total} cảnh tìm kiếm.",
+                )
+        else:
+            self.state.set_stage(
+                "media_assignment",
+                AutomationStageStatus.PENDING,
+                detail=f"Đã có render-safe asset cho {ready}/{total} cảnh; còn {unresolved} cảnh cần tìm lại.",
+                progress=0,
+            )
+
+        if research > 0:
+            detail = (
+                f"M110.4 đã xếp hạng {total} cảnh · giữ stock {keep} · "
+                f"reference hướng dẫn {guided} · mở rộng stock {broaden}. "
+                "YouTube vẫn chỉ là reference; M110.5 sẽ tự tìm lại nguồn render-safe cho các cảnh cần cải thiện."
+            )
+            self.state.mark_running("media_search", detail, progress=99)
+            self.state.message = f"Đã lưu {manifest_filename}. Chờ M110.5 Automatic Fallback / Re-search."
+        elif unresolved > 0:
+            detail = (
+                f"M110.4 đã xếp hạng {total} cảnh nhưng còn {unresolved} cảnh chưa có render asset. "
+                "M110.5 sẽ tiếp tục fallback/re-search."
+            )
+            self.state.mark_running("media_search", detail, progress=99)
+            self.state.message = f"Đã lưu {manifest_filename}. Chờ M110.5."
+        else:
+            self.state.mark_completed(
+                "media_search",
+                f"M110.4 xếp hạng hoàn tất: giữ stock {keep}/{total}; không cần tìm lại tư liệu.",
+            )
+            self.state.message = "Tư liệu hình ảnh/video đã hoàn tất. Bước tiếp theo là nhạc nền."
+
+        self.status = AutomationRunStatus.WAITING
+        self.save()
+        return self.state
+
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
         self.state.mark_failed(stage_key, message)
