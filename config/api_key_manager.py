@@ -93,6 +93,14 @@ class APIKeyManager:
                 "enabled": True,
             },
             {
+                "id": "youtube_data",
+                "name": "YouTube Data API",
+                "env_var": "YOUTUBE_API_KEY",
+                "base_url": "https://www.googleapis.com/youtube/v3",
+                "model": "",
+                "enabled": True,
+            },
+            {
                 "id": "storyblocks",
                 "name": "Storyblocks",
                 "env_var": "",
