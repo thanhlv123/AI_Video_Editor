@@ -1,0 +1,58 @@
+import ast
+import unittest
+from pathlib import Path
+
+
+class M1101GuiContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.gui_path = Path(__file__).resolve().parents[1] / "gui_creator_studio_m110_1.py"
+        cls.text = cls.gui_path.read_text(encoding="utf-8")
+        cls.tree = ast.parse(cls.text, filename=str(cls.gui_path))
+
+    def test_query_worker_exists_and_uses_visual_query_planner(self):
+        self.assertIn("class SceneQueryPlanningWorker", self.text)
+        self.assertIn("VisualQueryPlanner", self.text)
+        self.assertIn("save_query_plan", self.text)
+
+    def test_voice_pipeline_auto_chains_to_query_planning(self):
+        self.assertIn("self.automation_coordinator.voice_pipeline_completed", self.text)
+        self.assertIn("_automation_start_media_query_planning", self.text)
+        self.assertIn("QTimer.singleShot", self.text)
+
+    def test_query_progress_updates_same_automation_screen(self):
+        self.assertIn("def _on_media_query_progress", self.text)
+        self.assertIn("coordinator.media_query_progress", self.text)
+        self.assertIn("self._automation_apply_state()", self.text)
+
+    def test_query_output_stays_inside_automation_run(self):
+        self.assertIn("coordinator.run_dir / QUERY_PLAN_FILENAME", self.text)
+
+    def test_media_query_worker_is_initialized_before_first_start_request(self):
+        window_class = next(
+            node for node in self.tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "CreatorStudioWindow"
+        )
+        init_method = next(
+            node for node in window_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+        )
+        initialized = set()
+        for node in ast.walk(init_method):
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                for target in targets:
+                    if (
+                        isinstance(target, ast.Attribute)
+                        and isinstance(target.value, ast.Name)
+                        and target.value.id == "self"
+                    ):
+                        initialized.add(target.attr)
+        self.assertIn("media_query_worker", initialized)
+
+    def test_m110_1_footer(self):
+        self.assertIn("Creator Studio · M110.1 Scene Intelligence + Search Query", self.text)
+
+
+if __name__ == "__main__":
+    unittest.main()

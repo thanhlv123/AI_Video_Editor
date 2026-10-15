@@ -1,0 +1,401 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import tempfile
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from creator_studio.automation_workflow import (
+    AutomationStageStatus,
+    AutomationWorkflowState,
+)
+
+
+RUN_FORMAT = "creator_studio_automation_run_m110_2"
+RUN_FILENAME = "automation_run.json"
+
+
+class AutomationRunStatus(str, Enum):
+    RUNNING = "running"
+    WAITING = "waiting"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat()
+
+
+def _run_stamp() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+
+
+def _script_sha256(text: str) -> str:
+    return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
+
+
+def _safe_json(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): _safe_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_safe_json(item) for item in value]
+    return str(value)
+
+
+@dataclass
+class AutomationPipelineCoordinator:
+    """Persisted, UI-neutral coordinator for the one-click video workflow.
+
+    The same persisted state machine now covers:
+        script -> TTS voice -> VoicePipeline timing/scenes -> media query planning
+
+    M110.1.2 batches scene-intelligence requests, reuses safe project-local
+    cache entries, and falls back deterministically when KIE is unavailable.
+    M110.2 continues the same run through Pexels/Pixabay stock acquisition,
+    M106 asset promotion and M107 automatic scene assignment.
+    """
+
+    project_root: Path
+    config: dict[str, Any]
+    language: str
+    script_hash: str
+    run_id: str
+    run_dir: Path
+    state: AutomationWorkflowState = field(default_factory=AutomationWorkflowState)
+    status: AutomationRunStatus = AutomationRunStatus.RUNNING
+    created_at: str = field(default_factory=_now_iso)
+    updated_at: str = field(default_factory=_now_iso)
+    error: str = ""
+
+    @classmethod
+    def create(
+        cls,
+        project_root: Path,
+        *,
+        script_text: str,
+        language: str,
+        config: dict[str, Any] | None = None,
+    ) -> "AutomationPipelineCoordinator":
+        root = Path(project_root).resolve()
+        automation_root = root / "work" / "automation"
+        automation_root.mkdir(parents=True, exist_ok=True)
+
+        base = f"run_{_run_stamp()}"
+        run_dir = automation_root / base
+        suffix = 1
+        while run_dir.exists():
+            run_dir = automation_root / f"{base}_{suffix:02d}"
+            suffix += 1
+        run_dir.mkdir(parents=True, exist_ok=False)
+
+        obj = cls(
+            project_root=root,
+            config=dict(config or {}),
+            language=str(language or "und"),
+            script_hash=_script_sha256(script_text),
+            run_id=run_dir.name,
+            run_dir=run_dir,
+        )
+        obj.state.message = "Đang chuẩn bị quy trình tạo video tự động."
+        obj.save()
+        return obj
+
+    @property
+    def state_path(self) -> Path:
+        return self.run_dir / RUN_FILENAME
+
+    def save(self) -> Path:
+        self.updated_at = _now_iso()
+        payload = {
+            "format": RUN_FORMAT,
+            "run_id": self.run_id,
+            "project_root": str(self.project_root),
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "status": self.status.value,
+            "language": self.language,
+            "script_sha256": self.script_hash,
+            "config": _safe_json(self.config),
+            "error": self.error,
+            "workflow": self.state.to_dict(),
+        }
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{RUN_FILENAME}.",
+            suffix=".tmp",
+            dir=str(self.run_dir),
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+                handle.write("\n")
+                handle.flush()
+                try:
+                    os.fsync(handle.fileno())
+                except OSError:
+                    pass
+            os.replace(temp_name, self.state_path)
+        except Exception:
+            try:
+                Path(temp_name).unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+        return self.state_path
+
+    def begin(self) -> AutomationWorkflowState:
+        self.status = AutomationRunStatus.RUNNING
+        self.error = ""
+        self.state.mark_completed("script", "Kịch bản đã được lưu vào dự án.")
+        self.state.mark_running(
+            "voice",
+            "Đang tạo giọng đọc từ toàn bộ kịch bản...",
+            progress=5,
+        )
+        self.state.message = "Đang tạo giọng đọc."
+        self.save()
+        return self.state
+
+    def voice_completed(self, *, filename: str, duration_seconds: float = 0.0) -> AutomationWorkflowState:
+        duration = max(0.0, float(duration_seconds or 0.0))
+        detail = f"Đã tạo giọng đọc: {filename}"
+        if duration:
+            detail += f" · {duration:.1f} giây"
+        self.state.mark_completed("voice", detail)
+        self.state.mark_running(
+            "voice_timing",
+            "Đang chép lời và xác định mốc thời gian từ giọng đọc...",
+            progress=10,
+        )
+        self.state.message = "Đang phân tích nội dung và thời gian giọng đọc."
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def voice_pipeline_completed(
+        self,
+        *,
+        scene_count: int,
+        duration_seconds: float = 0.0,
+        run_name: str = "",
+    ) -> AutomationWorkflowState:
+        duration = max(0.0, float(duration_seconds or 0.0))
+        timing_detail = "Đã hoàn tất nhận dạng lời nói và mốc thời gian."
+        if duration:
+            timing_detail += f" Thời lượng {duration:.1f} giây."
+        self.state.mark_completed("voice_timing", timing_detail)
+        scene_detail = f"Đã chia thành {max(0, int(scene_count))} cảnh."
+        if run_name:
+            scene_detail += f" Run: {run_name}."
+        self.state.mark_completed("scene_analysis", scene_detail)
+        self.state.mark_running(
+            "media_search",
+            "Đang phân tích từng cảnh để tạo truy vấn tìm ảnh & video...",
+            progress=1,
+        )
+        self.state.message = "Đang tạo truy vấn tìm tư liệu cho từng cảnh."
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_query_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        primary_query: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        # Query planning is the first quarter of the media-search stage.
+        stage_progress = max(1, min(25, int(round((current_i / total_i) * 25))))
+        detail = f"Đang tạo truy vấn cho cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        if primary_query:
+            detail += f" · {primary_query}"
+        self.state.mark_running("media_search", detail, progress=stage_progress)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_query_activity(
+        self,
+        detail: str,
+        *,
+        progress: int = 1,
+    ) -> AutomationWorkflowState:
+        message = str(detail or "Đang phân tích nhóm cảnh...").strip()
+        self.state.mark_running(
+            "media_search",
+            message,
+            progress=max(1, min(25, int(progress or 1))),
+        )
+        self.state.message = message
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_query_plan_completed(
+        self,
+        *,
+        scene_count: int,
+        planned_count: int,
+        reused_gap_count: int = 0,
+        ai_count: int = 0,
+        cache_hit_count: int = 0,
+        fallback_count: int = 0,
+        batch_request_count: int = 0,
+        plan_filename: str = "visual_query_plan.json",
+    ) -> AutomationWorkflowState:
+        detail = (
+            f"Đã tạo truy vấn cho {max(0, int(planned_count))}/{max(0, int(scene_count))} cảnh."
+        )
+        stats = []
+        if ai_count:
+            stats.append(f"AI {int(ai_count)}")
+        if cache_hit_count:
+            stats.append(f"cache {int(cache_hit_count)}")
+        if fallback_count:
+            stats.append(f"fallback {int(fallback_count)}")
+        if batch_request_count:
+            stats.append(f"{int(batch_request_count)} batch KIE")
+        if stats:
+            detail += " " + " · ".join(stats) + "."
+        if reused_gap_count:
+            detail += f" {int(reused_gap_count)} cảnh khoảng lặng sẽ tái sử dụng hình trước."
+        detail += " Bước kế tiếp sẽ tìm trên Pexels, Pixabay và nguồn tham chiếu YouTube."
+        self.state.mark_running("media_search", detail, progress=25)
+        self.state.message = f"Đã tạo kế hoạch tìm tư liệu: {plan_filename}. Đang chuẩn bị tìm stock."
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_stock_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        phase: str = "searching",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        # Stock acquisition occupies the remaining 75% of media_search in M110.2.
+        fraction = current_i / total_i
+        progress = max(26, min(95, 25 + int(round(fraction * 70))))
+        phase_text = {
+            "searching": "Đang tìm Pexels/Pixabay",
+            "validated": "Đã tải và kiểm tra",
+            "cached": "Đã dùng media cache",
+            "search_again": "Chưa tìm được stock phù hợp",
+            "needs_review": "Cần nguồn fallback",
+            "search_failed": "Không có kết quả stock",
+            "download_failed": "Tải stock thất bại",
+            "validation_failed": "Stock không đạt kiểm tra",
+        }.get(str(phase or "").strip().lower(), str(phase or "Đang xử lý stock"))
+        if current_i <= 0:
+            detail = "Đang khởi động tìm Pexels/Pixabay..."
+        else:
+            detail = f"{phase_text} · cảnh {current_i}/{total_i}"
+            if scene_id:
+                detail += f" · {scene_id}"
+        self.state.mark_running("media_search", detail, progress=progress)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_stock_completed(
+        self,
+        *,
+        total_search_scenes: int,
+        validated_count: int,
+        assigned_count: int,
+        unresolved_count: int,
+        cache_hit_count: int = 0,
+        provider_names: list[str] | tuple[str, ...] = (),
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_search_scenes or 0))
+        validated = max(0, int(validated_count or 0))
+        assigned = max(0, int(assigned_count or 0))
+        unresolved = max(0, int(unresolved_count or 0))
+        providers = ", ".join(str(item) for item in provider_names if str(item).strip())
+        source_text = f" Nguồn: {providers}." if providers else ""
+        cache_text = f" Cache hit: {int(cache_hit_count)}." if cache_hit_count else ""
+
+        if unresolved == 0:
+            self.state.mark_completed(
+                "media_search",
+                f"Pexels/Pixabay hoàn tất: {validated}/{total} cảnh có stock hợp lệ.{source_text}{cache_text}",
+            )
+            self.state.mark_completed(
+                "media_assignment",
+                f"Đã tự động gán tư liệu cho {assigned}/{total} cảnh tìm kiếm.",
+            )
+            self.state.message = (
+                "Stock media đã hoàn tất. M110.3 sẽ bổ sung YouTube Reference làm nguồn fallback/tham chiếu; "
+                "bước sản xuất tiếp theo là nhạc nền."
+            )
+        else:
+            self.state.mark_running(
+                "media_search",
+                (
+                    f"Pexels/Pixabay đã xử lý {validated}/{total} cảnh; "
+                    f"còn {unresolved} cảnh chưa có stock phù hợp và sẽ chuyển sang YouTube Reference ở M110.3."
+                    f"{source_text}{cache_text}"
+                ),
+                progress=95,
+            )
+            # Keep only media_search active.  Some scenes are already assigned, but the
+            # assignment stage is not complete until fallback providers resolve the rest.
+            self.state.set_stage(
+                "media_assignment",
+                AutomationStageStatus.PENDING,
+                detail=f"Đã có tư liệu cho {assigned}/{total} cảnh; chờ fallback cho {unresolved} cảnh.",
+                progress=0,
+            )
+            self.state.message = (
+                f"Pexels/Pixabay hoàn tất; còn {unresolved} cảnh chờ YouTube Reference M110.3."
+            )
+
+        self.status = AutomationRunStatus.WAITING
+        self.save()
+        return self.state
+
+    def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
+        message = str(detail or "Không rõ lỗi.").strip()
+        self.state.mark_failed(stage_key, message)
+        self.state.message = f"Quy trình dừng tại bước lỗi: {message}"
+        self.status = AutomationRunStatus.FAILED
+        self.error = message
+        self.save()
+        return self.state
+
+    def cancel(self, detail: str = "Đã nhận yêu cầu hủy.") -> AutomationWorkflowState:
+        current = self.state.current_stage_key()
+        if current is not None:
+            self.state.set_stage(
+                current,
+                AutomationStageStatus.CANCELLED,
+                detail=str(detail),
+            )
+        self.state.message = str(detail)
+        self.status = AutomationRunStatus.CANCELLED
+        self.save()
+        return self.state
+
+    def to_dict(self) -> dict[str, Any]:
+        return json.loads(self.state_path.read_text(encoding="utf-8"))
