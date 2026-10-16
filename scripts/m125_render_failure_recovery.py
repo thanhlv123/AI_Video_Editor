@@ -78,7 +78,8 @@ def run_acceptance() -> dict:
             raise AssertionError("Cancelled render left a partial MP4 output.")
 
         recovered = service.export(timeline, root)
-        if recovered.output_path != next_output:
+        if (recovered.output_path.name != next_output.name
+                or not recovered.output_path.samefile(next_output)):
             raise AssertionError("Retry did not reuse the next safe output filename.")
         if hashlib.sha256(first.output_path.read_bytes()).hexdigest() != first_digest:
             raise AssertionError("Failure/retry modified a previous successful MP4.")
