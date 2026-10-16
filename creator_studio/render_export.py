@@ -299,6 +299,21 @@ class RenderExportService:
                 )
             )
 
+            if not isinstance(backend_result, RenderBackendResult):
+                raise RenderExportError("Render backend returned an invalid result.")
+            if not backend_result.success:
+                raise RenderExportError("Render backend returned an unsuccessful result.")
+            try:
+                reported_path = Path(backend_result.output_path).expanduser().resolve()
+            except (TypeError, ValueError, OSError) as exc:
+                raise RenderExportError("Render backend returned an invalid output path.") from exc
+            if reported_path != output_path:
+                raise RenderExportError("Render backend returned an unexpected output path.")
+            if not output_path.is_file():
+                raise RenderExportError("Render backend completed but the final output file is missing.")
+            if output_path.stat().st_size <= 0:
+                raise RenderExportError("Render backend completed but the final output file is empty.")
+
         except RenderBackendCancelled as exc:
             self._remove_partial_output(
                 output_path
@@ -369,23 +384,6 @@ class RenderExportService:
             raise RenderExportError(
                 f"Render/export failed: {exc}"
             ) from exc
-
-        if not backend_result.success:
-            self._remove_partial_output(
-                output_path
-            )
-
-            raise RenderExportError(
-                "Render backend returned "
-                "an unsuccessful result."
-            )
-
-        if not output_path.is_file():
-            raise RenderExportError(
-                "Render backend completed but "
-                "the final output file is missing: "
-                f"{output_path}"
-            )
 
         export_manifest[
             "status"

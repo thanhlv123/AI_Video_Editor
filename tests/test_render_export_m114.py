@@ -1119,5 +1119,67 @@ class RenderExportM114Tests(unittest.TestCase):
             self.assertEqual(len(backend.requests), 2)
 
 
+    def test_invalid_backend_postconditions_mark_failed_and_preserve_existing_export(self):
+        from dataclasses import replace
+
+        class PostconditionBackend(CapturingBackend):
+            def __init__(self, scenario):
+                super().__init__()
+                self.scenario = scenario
+
+            def render(self, request, **kwargs):
+                result = super().render(request, **kwargs)
+                if self.scenario == "invalid_result":
+                    return None
+                if self.scenario == "unsuccessful":
+                    return replace(result, success=False)
+                if self.scenario == "missing":
+                    request.output_path.unlink()
+                    return result
+                if self.scenario == "empty":
+                    request.output_path.write_bytes(b"")
+                    return result
+                if self.scenario == "wrong_path":
+                    return replace(
+                        result,
+                        output_path=request.output_path.with_name("other_video.mp4"),
+                    )
+                raise AssertionError(self.scenario)
+
+        scenarios = {
+            "invalid_result": "invalid result",
+            "unsuccessful": "unsuccessful result",
+            "missing": "output file is missing",
+            "empty": "output file is empty",
+            "wrong_path": "unexpected output path",
+        }
+        for scenario, expected_message in scenarios.items():
+            with self.subTest(scenario=scenario):
+                with TemporaryDirectory() as directory:
+                    root, manifest_path, _ = self._build_fixture(directory)
+                    existing = root / "exports" / "final_video_001.mp4"
+                    existing.parent.mkdir(parents=True, exist_ok=True)
+                    existing.write_bytes(b"preserve-original")
+                    service = RenderExportService(
+                        backend=PostconditionBackend(scenario)
+                    )
+
+                    with self.assertRaises(RenderExportError) as raised:
+                        service.export(manifest_path, root)
+
+                    self.assertIn(expected_message, str(raised.exception))
+                    self.assertEqual(existing.read_bytes(), b"preserve-original")
+                    self.assertFalse(
+                        (root / "exports" / "final_video_002.mp4").exists()
+                    )
+                    report = json.loads(
+                        (manifest_path.parent / "render_export_manifest.json")
+                        .read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(report["status"], "failed")
+                    self.assertEqual(report["issues"], ["render_failed"])
+                    self.assertIn(expected_message, report["error"])
+
+
 if __name__ == "__main__":
     unittest.main()
