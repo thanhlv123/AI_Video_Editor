@@ -32,7 +32,7 @@ class ExportRecoveryTests(unittest.TestCase):
             output = root / "final_video_001.mp4"
             output.write_bytes(b"keep-my-video")
             save(path, report(root))
-            self.assertEqual(recover_interrupted_exports(root, root), [path])
+            self.assertEqual(recover_interrupted_exports(root, root), [path.resolve()])
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["status"], "failed")
             self.assertIn("render_interrupted", data["issues"])
@@ -64,7 +64,7 @@ class ExportRecoveryTests(unittest.TestCase):
             root = Path(directory)
             path = root / "render_export_manifest.json"
             save(path, report(root, issues=["prior", "render_interrupted"]))
-            self.assertEqual(recover_interrupted_exports(root, root), [path])
+            self.assertEqual(recover_interrupted_exports(root, root), [path.resolve()])
             self.assertEqual(
                 json.loads(path.read_text(encoding="utf-8"))["issues"],
                 ["prior", "render_interrupted"],
