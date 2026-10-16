@@ -787,6 +787,103 @@ class AutomationPipelineCoordinator:
         self.save()
         return self.state
 
+    def music_selection_started(
+        self,
+        *,
+        candidate_count: int = 0,
+    ) -> AutomationWorkflowState:
+        count = max(0, int(candidate_count or 0))
+        detail = "M112 đang chọn nhạc nền từ thư viện của dự án."
+        if count:
+            detail += f" {count} track."
+        self.state.mark_running("music", detail, progress=5)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def music_selection_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        asset_id: str = "",
+        score: float = 0.0,
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        progress = max(5, min(95, int(round((current_i / total_i) * 95))))
+        detail = f"Đang đánh giá nhạc nền · {current_i}/{total_i}"
+        if asset_id:
+            detail += f" · {asset_id}"
+        if score:
+            detail += f" · score {float(score):.3f}"
+        self.state.mark_running("music", detail, progress=progress)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def music_selection_completed(
+        self,
+        *,
+        status: str,
+        candidate_count: int,
+        eligible_count: int,
+        selected_asset_id: str = "",
+        selected_duration_seconds: float = 0.0,
+        project_duration_seconds: float = 0.0,
+        loop_required: bool = False,
+        manifest_filename: str = "music_selection_manifest.json",
+    ) -> AutomationWorkflowState:
+        normalized = str(status or "").strip().lower()
+        candidates = max(0, int(candidate_count or 0))
+        eligible = max(0, int(eligible_count or 0))
+        selected_duration = max(0.0, float(selected_duration_seconds or 0.0))
+        project_duration = max(0.0, float(project_duration_seconds or 0.0))
+
+        if normalized == "selected":
+            detail = f"Đã chọn nhạc nền {selected_asset_id or 'project music'}"
+            if selected_duration:
+                detail += f" · {selected_duration:.1f} giây"
+            if project_duration:
+                detail += f" · video {project_duration:.1f} giây"
+            if loop_required:
+                detail += " · sẽ lặp có kiểm soát khi dựng timeline"
+            detail += f" · {eligible}/{candidates} track hợp lệ."
+            self.state.mark_completed("music", detail)
+        elif normalized == "skipped_disabled":
+            self.state.set_stage(
+                "music",
+                AutomationStageStatus.SKIPPED,
+                detail="Đã tắt tùy chọn tự động thêm nhạc nền.",
+                progress=100,
+            )
+        elif normalized in {"skipped_no_music", "skipped_no_valid_music"}:
+            detail = (
+                "Dự án chưa có music asset hợp lệ; bỏ qua nhạc nền để không chặn quy trình dựng video."
+                if normalized == "skipped_no_music"
+                else "Không có music asset đọc được thời lượng; bỏ qua nhạc nền để không chặn quy trình dựng video."
+            )
+            self.state.set_stage(
+                "music",
+                AutomationStageStatus.SKIPPED,
+                detail=detail,
+                progress=100,
+            )
+        else:
+            detail = f"Trạng thái M112 không hợp lệ: {normalized or '(trống)'}"
+            self.state.mark_failed("music", detail)
+            self.status = AutomationRunStatus.FAILED
+            self.error = detail
+            self.save()
+            return self.state
+
+        self.state.message = f"Đã lưu {manifest_filename}. Bước tiếp theo là dựng timeline M113."
+        self.status = AutomationRunStatus.WAITING
+        self.save()
+        return self.state
+
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
         self.state.mark_failed(stage_key, message)
