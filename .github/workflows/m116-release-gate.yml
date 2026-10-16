@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "creator-studio-m116-*"
+      - "creator-studio-m*"
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: m116-release-gate-${{ github.ref }}
+  group: creator-studio-release-gate-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:

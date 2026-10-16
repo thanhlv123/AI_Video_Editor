@@ -9,6 +9,8 @@ PowerShell intervention.
 
 What M116 adds
 --------------
+The release gate applies to M116 and future creator-studio milestone branches.
+
 1. A Windows GitHub Actions release gate.
 2. A repository-local Python gate runner: scripts/m116_release_gate.py
 3. A local one-command PowerShell wrapper: scripts/m116_release_gate.ps1
