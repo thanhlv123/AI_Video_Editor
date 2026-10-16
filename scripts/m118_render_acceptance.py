@@ -15,6 +15,13 @@ import sys
 from tempfile import TemporaryDirectory
 
 
+# Support both `python -m scripts.m118_render_acceptance` and direct
+# `python scripts/m118_render_acceptance.py` on Windows.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
 def _run_command(command: list[str], *, timeout: int = 60) -> str:
     completed = subprocess.run(
         command,
