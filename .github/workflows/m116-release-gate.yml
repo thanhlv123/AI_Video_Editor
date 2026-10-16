@@ -72,3 +72,4 @@ jobs:
           name: m116-release-gate-reports
           path: .automation/*.json
           if-no-files-found: warn
+          include-hidden-files: true

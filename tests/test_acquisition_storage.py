@@ -103,6 +103,24 @@ class AcquisitionStorageTests(unittest.TestCase):
         with self.assertRaises(AcquisitionError):
             self.install()
 
+    def test_check_inspects_only_managed_root_and_descendants(self):
+        self.storage.root.mkdir()
+        child = self.storage.root / "objects"
+        from creator_studio.acquisition.storage import regular as real_regular
+        with patch(
+            "creator_studio.acquisition.storage.regular",
+            wraps=real_regular,
+        ) as checked:
+            self.storage._directory(child)
+
+        inspected = [call.args[0] for call in checked.call_args_list]
+        self.assertTrue(inspected)
+        for path in inspected:
+            self.assertTrue(
+                path == self.storage.root or self.storage.root in path.parents,
+                msg=f"inspected trusted host ancestor outside managed root: {path}",
+            )
+
     def test_concurrent_identical_installation(self):
         barrier = Barrier(2)
         with ThreadPoolExecutor(max_workers=2) as pool:

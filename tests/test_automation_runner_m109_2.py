@@ -32,7 +32,10 @@ class AutomationRunnerM1092Tests(unittest.TestCase):
             self.assertNotEqual(first.run_dir, second.run_dir)
             self.assertTrue(first.state_path.is_file())
             self.assertTrue(second.state_path.is_file())
-            self.assertEqual(first.run_dir.parent, root / "work" / "automation")
+            self.assertEqual(
+                first.run_dir.parent,
+                (root / "work" / "automation").resolve(),
+            )
 
     def test_begin_marks_script_complete_and_voice_running(self):
         with tempfile.TemporaryDirectory() as td:
