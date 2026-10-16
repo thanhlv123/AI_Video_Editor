@@ -41,3 +41,7 @@ Safety
 ------
 M116 does not modify protected production modules. The workflow does not store
 or print API credentials and deliberately clears known provider keys in CI.
+
+CI trigger policy
+-----------------
+Milestone branches run one CI gate per push. Pull-request synchronization does not launch a duplicate full suite; manual workflow dispatch remains available.
