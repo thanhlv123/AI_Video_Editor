@@ -65,7 +65,7 @@ if not ranked:
 
     raise RuntimeError(
         "No visual ranking found. "
-        "Run test_visual_ranker.py first."
+        "Run manual_visual_ranker.py first."
     )
 
 

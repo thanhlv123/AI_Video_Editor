@@ -89,7 +89,7 @@ if not candidates:
 
     raise RuntimeError(
         "No candidates found. "
-        "Run test_stock_search_manager.py first."
+        "Run manual_stock_search_manager.py first."
     )
 
 

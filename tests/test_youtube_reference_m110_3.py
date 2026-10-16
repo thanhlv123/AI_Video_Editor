@@ -114,21 +114,33 @@ class YouTubeReferenceM1103Tests(unittest.TestCase):
             self.assertEqual(targets[1].reason, 'unresolved_stock')
 
     def test_missing_key_does_not_call_network(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            query, stock = write_inputs(root)
-            transport = FakeTransport()
-            report = YouTubeReferenceService(
-                run_dir=root,
-                query_plan_path=query,
-                stock_manifest_path=stock,
-                api_key='',
-                transport=transport,
-            ).run()
-            self.assertTrue(report.missing_api_key)
-            self.assertEqual(report.target_count, 2)
-            self.assertEqual(transport.calls, [])
-            self.assertTrue((root / YOUTUBE_REFERENCE_FILENAME).is_file())
+        import os
+        from unittest.mock import patch
+
+        # YouTubeReferenceService intentionally falls back to
+        # YOUTUBE_API_KEY when api_key is empty. Force this test's
+        # "missing key" precondition so it is independent of the
+        # developer machine and of tests executed earlier.
+        with patch.dict(
+            os.environ,
+            {"YOUTUBE_API_KEY": ""},
+            clear=False,
+        ):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                query, stock = write_inputs(root)
+                transport = FakeTransport()
+                report = YouTubeReferenceService(
+                    run_dir=root,
+                    query_plan_path=query,
+                    stock_manifest_path=stock,
+                    api_key='',
+                    transport=transport,
+                ).run()
+                self.assertTrue(report.missing_api_key)
+                self.assertEqual(report.target_count, 2)
+                self.assertEqual(transport.calls, [])
+                self.assertTrue((root / YOUTUBE_REFERENCE_FILENAME).is_file())
 
     def test_search_uses_embeddable_and_syndicated_filters(self):
         with tempfile.TemporaryDirectory() as td:

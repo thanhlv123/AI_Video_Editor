@@ -381,7 +381,16 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(validate(m), [])
 
     def test_production_dependency_isolation(self):
-        root = Path(__file__).resolve().parents[1] / "creator_studio"
+        # M61 Manifest V2 owns the creator_studio/manifest dependency
+        # boundary. Later Creator Studio milestones legitimately added
+        # runtime, GUI, provider, rendering, and orchestration dependencies
+        # elsewhere under creator_studio, so this isolation contract must
+        # remain scoped to the manifest subsystem.
+        root = (
+            Path(__file__).resolve().parents[1]
+            / "creator_studio"
+            / "manifest"
+        )
         for path in root.rglob("*.py"):
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if isinstance(node, ast.Import):

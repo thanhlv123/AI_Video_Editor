@@ -171,9 +171,51 @@ class PresentationTests(unittest.TestCase):
             "freeze", "speed", "reverse", "frame_duplication", "frame_dropping", "fps_conversion"})
 
     def test_forbidden_imports_not_loaded(self):
+        # Run the import-boundary check in a fresh interpreter.
+        # The full unittest suite shares one sys.modules mapping, so tests
+        # executed earlier may legitimately have loaded renderer modules.
+        # This contract is specifically about what importing presentation
+        # policy loads into a clean process.
+        import subprocess
         import sys
-        self.assertNotIn("engine.renderer", sys.modules)
-        self.assertNotIn("engine.timeline_renderer", sys.modules)
+
+        root = Path(__file__).resolve().parents[1]
+
+        code = """
+import sys
+import creator_studio.presentation_policy
+
+for module_name in (
+    "engine.renderer",
+    "engine.timeline_renderer",
+):
+    if module_name in sys.modules:
+        raise SystemExit(
+            f"forbidden module loaded: {module_name}"
+        )
+"""
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                code,
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=(
+                "presentation policy import isolation failed\n"
+                f"stdout:\n{completed.stdout}\n"
+                f"stderr:\n{completed.stderr}"
+            ),
+        )
 
     def test_video_lattice(self):
         p = self.build()
