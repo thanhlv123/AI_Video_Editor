@@ -1746,4 +1746,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from creator_studio.launcher import main as _launch_main
+    raise SystemExit(_launch_main())

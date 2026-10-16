@@ -60,6 +60,15 @@ jobs:
         shell: pwsh
         run: python scripts/m116_release_gate.py import --report .automation/import.json
 
+      - name: M117 production launcher prerequisites
+        shell: pwsh
+        run: python run_creator_studio.py --check
+
+      - name: M117 offscreen production GUI smoke
+        shell: pwsh
+        timeout-minutes: 3
+        run: python run_creator_studio.py --smoke
+
       - name: Full automatic unittest suite
         shell: pwsh
         run: python scripts/m116_release_gate.py full --verbosity 1 --report .automation/full.json
