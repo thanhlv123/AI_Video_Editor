@@ -408,7 +408,7 @@ class AutomationRunnerM114Tests(unittest.TestCase):
             missing_visual.unlink()
             backend = SuccessfulBackend()
 
-            with self.assertRaisesRegex(Exception, r"visual\\[0\\]"):
+            with self.assertRaisesRegex(Exception, r"visual\[0\]"):
                 coordinator.run_render_export(
                     timeline_manifest_path=manifest_path,
                     backend=backend,
