@@ -88,6 +88,19 @@ class ExportHistoryGuiTests(unittest.TestCase):
             self.assertEqual(Path(self.page.history_combo.currentData()), video.resolve())
             self.assertEqual(self.page.progress_bar.value(), 100)
 
+    def test_refresh_button_preserves_selected_video(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            first = write_export(root, "run_001", "final_video_001.mp4")
+            write_export(root, "run_002", "final_video_002.mp4")
+            self.page.set_project(None, root / "project_manifest.json")
+            self.assertEqual(self.page.history_combo.count(), 2)
+            index = self.page.history_combo.findData(str(first.resolve()))
+            self.assertGreaterEqual(index, 0)
+            self.page.history_combo.setCurrentIndex(index)
+            self.page.history_refresh_button.click()
+            self.assertEqual(Path(self.page.history_combo.currentData()), first.resolve())
+
     def test_refresh_does_not_change_manifest_bytes(self):
         with TemporaryDirectory() as folder:
             root = Path(folder)

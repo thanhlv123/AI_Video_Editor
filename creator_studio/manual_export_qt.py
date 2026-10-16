@@ -174,6 +174,8 @@ class ManualExportPage(QWidget):
         self._refresh_history()
 
     def _refresh_history(self, preferred_output: Path | None = None):
+        if isinstance(preferred_output, bool):
+            preferred_output = None
         if self.is_exporting() and preferred_output is None:
             return
         previous = str(preferred_output) if preferred_output is not None else self.history_combo.currentData()
