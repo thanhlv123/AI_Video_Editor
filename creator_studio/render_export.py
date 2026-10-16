@@ -12,6 +12,7 @@ from core.project import Project
 from core.timeline import Clip, Track
 
 from creator_studio.export_lock import ProjectExportBusy, project_export_lock
+from creator_studio.output_integrity import verify_rendered_output
 
 from creator_studio.render_backend import (
     RenderBackendCancelled,
@@ -91,11 +92,19 @@ class RenderExportService:
         default_width: int = 1920,
         default_height: int = 1080,
         default_fps: float = 30.0,
+        verify_output: Optional[bool] = None,
     ) -> None:
         self.backend = (
             backend
             if backend is not None
             else TimelineRendererBackend()
+        )
+        # Real production renders must pass ffprobe; synthetic test backends
+        # remain injectable without requiring a playable MP4 fixture.
+        self.verify_output = (
+            isinstance(self.backend, TimelineRendererBackend)
+            if verify_output is None
+            else bool(verify_output)
         )
 
         self.default_width = self._positive_int(
@@ -346,6 +355,14 @@ class RenderExportService:
                 raise RenderExportError("Render backend completed but the final output file is missing.")
             if output_path.stat().st_size <= 0:
                 raise RenderExportError("Render backend completed but the final output file is empty.")
+            if self.verify_output:
+                verify_rendered_output(
+                    output_path,
+                    expected_width=prepared.project.settings.width,
+                    expected_height=prepared.project.settings.height,
+                    expected_duration=prepared.duration_seconds,
+                    require_audio=prepared.has_narration or prepared.has_music,
+                )
 
         except RenderBackendCancelled as exc:
             self._remove_partial_output(
