@@ -884,6 +884,85 @@ class AutomationPipelineCoordinator:
         self.save()
         return self.state
 
+    def timeline_assembly_started(
+        self,
+        *,
+        total_scene_count: int = 0,
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        detail = "M113 đang khớp voice timing, final renderable assets và nhạc nền vào timeline."
+        if total:
+            detail += f" {total} cảnh."
+        self.state.mark_running("timeline", detail, progress=5)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def timeline_assembly_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        status: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        progress = max(5, min(95, int(round((current_i / total_i) * 95))))
+        label = {
+            "scene_bound": "Đã gắn tư liệu vào mốc voice",
+            "gap_fill": "Đã xử lý khoảng trống timeline",
+        }.get(str(status or "").strip(), "Đang dựng timeline")
+        detail = f"{label} · cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        self.state.mark_running("timeline", detail, progress=progress)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def timeline_assembly_completed(
+        self,
+        *,
+        status: str,
+        scene_count: int,
+        visual_clip_count: int,
+        gap_fill_count: int,
+        duration_seconds: float,
+        music_included: bool,
+        manifest_filename: str = "timeline_manifest.json",
+    ) -> AutomationWorkflowState:
+        normalized = str(status or "").strip().lower()
+        scenes = max(0, int(scene_count or 0))
+        clips = max(0, int(visual_clip_count or 0))
+        gaps = max(0, int(gap_fill_count or 0))
+        duration = max(0.0, float(duration_seconds or 0.0))
+        if normalized != "ready":
+            detail = f"Trạng thái M113 không hợp lệ: {normalized or '(trống)'}"
+            self.state.mark_failed("timeline", detail)
+            self.status = AutomationRunStatus.FAILED
+            self.error = detail
+            self.save()
+            return self.state
+
+        detail = f"M113 đã dựng timeline {scenes} cảnh · {clips} visual clip"
+        if gaps:
+            detail += f" · {gaps} gap-fill"
+        if duration:
+            detail += f" · {duration:.1f} giây"
+        detail += " · có nhạc nền" if music_included else " · không nhạc nền"
+        self.state.mark_completed("timeline", detail)
+        self.state.message = (
+            f"Đã lưu {manifest_filename}. Timeline đã sẵn sàng; "
+            "bước tiếp theo là M114 Render + Export."
+        )
+        self.status = AutomationRunStatus.WAITING
+        self.error = ""
+        self.save()
+        return self.state
+
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
         self.state.mark_failed(stage_key, message)
