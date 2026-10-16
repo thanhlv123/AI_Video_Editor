@@ -78,6 +78,7 @@ class AutomationPipelineCoordinator:
     created_at: str = field(default_factory=_now_iso)
     updated_at: str = field(default_factory=_now_iso)
     error: str = ""
+    render_export: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -129,6 +130,7 @@ class AutomationPipelineCoordinator:
             "script_sha256": self.script_hash,
             "config": _safe_json(self.config),
             "error": self.error,
+            "render_export": _safe_json(self.render_export),
             "workflow": self.state.to_dict(),
         }
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -962,6 +964,266 @@ class AutomationPipelineCoordinator:
         self.error = ""
         self.save()
         return self.state
+
+    def render_export_started(
+        self,
+        *,
+        timeline_manifest_filename: str = "timeline_manifest.json",
+    ) -> AutomationWorkflowState:
+        detail = (
+            "M114 \u0111ang ki\u1ec3m tra timeline v\u00e0 chu\u1ea9n b\u1ecb render."
+        )
+        if timeline_manifest_filename:
+            detail += f" Ngu\u1ed3n: {timeline_manifest_filename}."
+
+        self.render_export = {
+            "status": "rendering",
+            "timeline_manifest": str(timeline_manifest_filename or ""),
+        }
+
+        self.state.mark_running(
+            "render",
+            detail,
+            progress=1,
+        )
+
+        self.state.set_stage(
+            "export",
+            AutomationStageStatus.PENDING,
+            detail="Ch\u1edd render ho\u00e0n t\u1ea5t tr\u01b0\u1edbc khi xu\u1ea5t video.",
+            progress=0,
+        )
+
+        self.state.message = (
+            "M114 \u0111ang d\u1ef1ng video t\u1eeb timeline."
+        )
+        self.status = AutomationRunStatus.RUNNING
+        self.error = ""
+        self.save()
+        return self.state
+
+    def render_export_progress(
+        self,
+        *,
+        phase: str,
+        percent: float,
+        detail: str = "",
+    ) -> AutomationWorkflowState:
+        normalized_phase = str(phase or "rendering").strip().lower()
+
+        try:
+            numeric_percent = float(percent)
+        except (TypeError, ValueError):
+            numeric_percent = 0.0
+
+        numeric_percent = max(
+            0.0,
+            min(
+                100.0,
+                numeric_percent,
+            ),
+        )
+
+        # Render remains RUNNING until RenderExportService has also
+        # persisted the export manifest. Backend 100% therefore maps
+        # to coordinator 99%.
+        stage_progress = max(
+            1,
+            min(
+                99,
+                int(round(numeric_percent)),
+            ),
+        )
+
+        fallback_detail = {
+            "validating": "M114 \u0111ang ki\u1ec3m tra timeline v\u00e0 asset.",
+            "prepared": "M114 \u0111\u00e3 chu\u1ea9n b\u1ecb project render.",
+            "starting": "M114 \u0111ang kh\u1edfi \u0111\u1ed9ng renderer.",
+            "rendering": "M114 \u0111ang m\u00e3 h\u00f3a video.",
+            "finalizing": "M114 \u0111ang ho\u00e0n t\u1ea5t file MP4.",
+            "completed": "Renderer \u0111\u00e3 ho\u00e0n t\u1ea5t; \u0111ang ghi k\u1ebft qu\u1ea3 export.",
+        }.get(
+            normalized_phase,
+            "M114 \u0111ang x\u1eed l\u00fd render/export.",
+        )
+
+        message = str(
+            detail or fallback_detail
+        ).strip()
+
+        self.state.mark_running(
+            "render",
+            message,
+            progress=stage_progress,
+        )
+
+        self.state.message = message
+        self.status = AutomationRunStatus.RUNNING
+
+        current = dict(
+            self.render_export or {}
+        )
+        current.update(
+            {
+                "status": "rendering",
+                "phase": normalized_phase,
+                "progress": numeric_percent,
+                "detail": message,
+            }
+        )
+        self.render_export = current
+
+        self.save()
+        return self.state
+
+    def render_export_completed(
+        self,
+        *,
+        output_path: str | Path,
+        manifest_path: str | Path,
+        duration_seconds: float,
+        width: int,
+        height: int,
+        fps: float,
+    ) -> AutomationWorkflowState:
+        output = Path(output_path)
+        manifest = Path(manifest_path)
+
+        duration = max(
+            0.0,
+            float(duration_seconds or 0.0),
+        )
+
+        render_detail = (
+            f"M114 \u0111\u00e3 d\u1ef1ng video {duration:.1f} gi\u00e2y"
+            if duration
+            else "M114 \u0111\u00e3 d\u1ef1ng video."
+        )
+
+        render_detail += (
+            f" \u00b7 {int(width)}x{int(height)}"
+            f" @ {float(fps):g} fps."
+        )
+
+        self.state.mark_completed(
+            "render",
+            render_detail,
+        )
+
+        self.state.mark_completed(
+            "export",
+            f"\u0110\u00e3 xu\u1ea5t video: {output.name}",
+        )
+
+        self.render_export = {
+            "status": "completed",
+            "output_path": str(output),
+            "manifest_path": str(manifest),
+            "duration_seconds": duration,
+            "width": int(width),
+            "height": int(height),
+            "fps": float(fps),
+        }
+
+        self.state.message = (
+            f"M114 ho\u00e0n t\u1ea5t \u00b7 {output.name}"
+        )
+        self.status = AutomationRunStatus.COMPLETED
+        self.error = ""
+        self.save()
+        return self.state
+
+    def run_render_export(
+        self,
+        timeline_manifest_path: str | Path | None = None,
+        *,
+        backend: Any = None,
+        cancel_token: Any = None,
+        progress_callback: Any = None,
+    ):
+        from creator_studio.render_backend import (
+            RenderBackendCancelled,
+        )
+        from creator_studio.render_export import (
+            RenderExportService,
+        )
+
+        timeline_path = (
+            Path(timeline_manifest_path)
+            if timeline_manifest_path is not None
+            else self.run_dir / "timeline_manifest.json"
+        )
+
+        self.render_export_started(
+            timeline_manifest_filename=timeline_path.name,
+        )
+
+        service = (
+            RenderExportService(
+                backend=backend
+            )
+            if backend is not None
+            else RenderExportService()
+        )
+
+        def on_progress(event):
+            self.render_export_progress(
+                phase=event.phase,
+                percent=event.percent,
+                detail=event.detail,
+            )
+
+            if progress_callback is not None:
+                progress_callback(event)
+
+        try:
+            result = service.export(
+                timeline_manifest_path=timeline_path,
+                project_root=self.project_root,
+                progress_callback=on_progress,
+                cancel_token=cancel_token,
+            )
+
+        except RenderBackendCancelled as exc:
+            self.render_export = {
+                **dict(self.render_export or {}),
+                "status": "cancelled",
+                "error": str(exc),
+            }
+            self.cancel(
+                str(exc)
+                or "\u0110\u00e3 h\u1ee7y M114 Render + Export."
+            )
+            raise
+
+        except Exception as exc:
+            message = str(
+                exc
+                or "M114 Render + Export th\u1ea5t b\u1ea1i."
+            ).strip()
+
+            self.render_export = {
+                **dict(self.render_export or {}),
+                "status": "failed",
+                "error": message,
+            }
+
+            self.fail(
+                "render",
+                message,
+            )
+            raise
+
+        self.render_export_completed(
+            output_path=result.output_path,
+            manifest_path=result.manifest_path,
+            duration_seconds=result.duration_seconds,
+            width=result.width,
+            height=result.height,
+            fps=result.fps,
+        )
+
+        return result
 
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
