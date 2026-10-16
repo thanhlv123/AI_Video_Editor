@@ -1045,5 +1045,79 @@ class RenderExportM114Tests(unittest.TestCase):
         )
 
 
+    def test_null_narration_source_duration_uses_timeline_fallback(self):
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, manifest = self._build_fixture(
+                directory, include_music=False
+            )
+            manifest["tracks"]["narration"]["source_duration_seconds"] = None
+            self._write_json(manifest_path, manifest)
+            result = service.export(manifest_path, root)
+            self.assertTrue(result.output_path.is_file())
+            self.assertEqual(len(backend.requests), 1)
+            request = backend.requests[0]
+            self.assertIsNone(request.music_track_id)
+            self.assertEqual(
+                request.project.get_media("voice_test").duration,
+                manifest["duration_seconds"],
+            )
+
+    def test_absent_narration_source_duration_uses_timeline_fallback(self):
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, manifest = self._build_fixture(directory)
+            manifest["tracks"]["narration"].pop("source_duration_seconds")
+            self._write_json(manifest_path, manifest)
+            service.export(manifest_path, root)
+            self.assertEqual(
+                backend.requests[0].project.get_media("voice_test").duration,
+                10.6,
+            )
+
+    def test_known_narration_source_duration_is_preserved(self):
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, manifest = self._build_fixture(directory)
+            manifest["tracks"]["narration"]["source_duration_seconds"] = 12.5
+            self._write_json(manifest_path, manifest)
+            service.export(manifest_path, root)
+            self.assertEqual(
+                backend.requests[0].project.get_media("voice_test").duration,
+                12.5,
+            )
+
+    def test_invalid_nonnull_narration_duration_fails_before_backend(self):
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, manifest = self._build_fixture(directory)
+            for value in (0, -1, False, "", "nan", "inf"):
+                with self.subTest(value=value):
+                    manifest["tracks"]["narration"]["source_duration_seconds"] = value
+                    self._write_json(manifest_path, manifest)
+                    with self.assertRaises(RenderExportError):
+                        service.export(manifest_path, root)
+                    self.assertEqual(backend.requests, [])
+
+    def test_null_narration_duration_does_not_overwrite_existing_export(self):
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, manifest = self._build_fixture(directory)
+            manifest["tracks"]["narration"]["source_duration_seconds"] = None
+            self._write_json(manifest_path, manifest)
+            first = service.export(manifest_path, root)
+            first_bytes = first.output_path.read_bytes()
+            second = service.export(manifest_path, root)
+            self.assertNotEqual(first.output_path, second.output_path)
+            self.assertEqual(first.output_path.read_bytes(), first_bytes)
+            self.assertTrue(second.output_path.is_file())
+            self.assertEqual(len(backend.requests), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

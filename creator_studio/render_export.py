@@ -980,17 +980,17 @@ class RenderExportService:
             "narration",
         )
 
-        source_duration = (
-            self._positive_float(
-                narration.get(
-                    "source_duration_seconds",
-                    timeline_duration,
-                ),
-                (
-                    "tracks.narration."
-                    "source_duration_seconds"
-                ),
-            )
+        # M113 explicitly writes null when the source voice duration
+        # is unknown. Treat only null (or an absent key) as unknown;
+        # keep rejecting invalid non-null numeric metadata.
+        source_duration_value = narration.get(
+            "source_duration_seconds"
+        )
+        source_duration = self._positive_float(
+            timeline_duration
+            if source_duration_value is None
+            else source_duration_value,
+            "tracks.narration.source_duration_seconds",
         )
 
         start = self._nonnegative_float(

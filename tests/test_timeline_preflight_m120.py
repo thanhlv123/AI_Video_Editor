@@ -90,12 +90,22 @@ class TimelinePreflightTests(unittest.TestCase):
         self.save()
         self.assertIn("empty_media", {x["code"] for x in self.inspect()["issues"]})
 
-    def test_null_source_duration_reports_render_contract(self):
+    def test_null_source_duration_uses_timeline_fallback(self):
         self.manifest["tracks"]["narration"]["source_duration_seconds"] = None
         self.save()
         report = self.inspect()
-        self.assertEqual(report["status"], "blocked")
-        self.assertIn("render_contract", {x["code"] for x in report["issues"]})
+        self.assertEqual(report["status"], "ready")
+        self.assertEqual(report["summary"]["error_count"], 0)
+        self.assertNotIn("render_contract", {x["code"] for x in report["issues"]})
+
+    def test_invalid_nonnull_source_duration_is_still_blocked(self):
+        for value in (0, -1, False, "", "nan", "inf"):
+            with self.subTest(value=value):
+                self.manifest["tracks"]["narration"]["source_duration_seconds"] = value
+                self.save()
+                report = self.inspect()
+                self.assertEqual(report["status"], "blocked")
+                self.assertIn("render_contract", {x["code"] for x in report["issues"]})
 
     def test_disabled_music_does_not_require_music_asset(self):
         self.manifest["tracks"]["music"] = {"path": "missing.mp3"}
