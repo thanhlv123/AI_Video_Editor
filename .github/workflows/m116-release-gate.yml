@@ -74,6 +74,11 @@ jobs:
         timeout-minutes: 4
         run: python scripts/m118_render_acceptance.py --report .automation/m118_acceptance.json
 
+      - name: M125 real FFmpeg failure and recovery acceptance
+        shell: pwsh
+        timeout-minutes: 4
+        run: python scripts/m125_render_failure_recovery.py --report .automation/m125_acceptance.json
+
       - name: Full automatic unittest suite
         shell: pwsh
         run: python scripts/m116_release_gate.py full --verbosity 1 --report .automation/full.json

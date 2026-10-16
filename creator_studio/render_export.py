@@ -290,38 +290,38 @@ class RenderExportService:
             export_manifest,
         )
 
-        self._emit(
-            progress_callback,
-            "prepared",
-            3.0,
-            (
-                "Render project prepared. "
-                f"Output: {output_path.name}"
-            ),
-        )
-
-        request = RenderBackendRequest(
-            project=prepared.project,
-            output_path=output_path,
-            duration_seconds=(
-                prepared.duration_seconds
-            ),
-            video_track_id=(
-                prepared.video_track_id
-            ),
-            narration_track_id=(
-                prepared.narration_track_id
-            ),
-            music_track_id=(
-                prepared.music_track_id
-            ),
-            mix_policy=(
-                prepared.mix_policy
-            ),
-            allow_overwrite=False,
-        )
-
         try:
+            self._emit(
+                progress_callback,
+                "prepared",
+                3.0,
+                (
+                    "Render project prepared. "
+                    f"Output: {output_path.name}"
+                ),
+            )
+
+            request = RenderBackendRequest(
+                project=prepared.project,
+                output_path=output_path,
+                duration_seconds=(
+                    prepared.duration_seconds
+                ),
+                video_track_id=(
+                    prepared.video_track_id
+                ),
+                narration_track_id=(
+                    prepared.narration_track_id
+                ),
+                music_track_id=(
+                    prepared.music_track_id
+                ),
+                mix_policy=(
+                    prepared.mix_policy
+                ),
+                allow_overwrite=False,
+            )
+
             backend_result = (
                 self.backend.render(
                     request,
