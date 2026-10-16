@@ -75,12 +75,23 @@ class ManagedStorage:
 
     def _check(self, path, *, final=False):
         try:
-            path.relative_to(self.root)
-            # Check ancestors too: a managed root itself may not be a junction.
-            chain = list(reversed(path.parents)) + [path]
+            # The configured managed root is the trust boundary. Inspect the
+            # root and descendants only; parents outside the root belong to the
+            # host/runtime and may legitimately use Windows aliases or reparse
+            # points (for example GitHub Actions temporary directories).
+            relative = path.relative_to(self.root)
+            chain = [self.root]
+            current = self.root
+            for part_name in relative.parts:
+                current = current / part_name
+                chain.append(current)
+
             for part in chain:
                 if part.exists() or part.is_symlink():
                     regular(part, directory=(part != path or not final))
+
+            # Resolve both sides to reject traversal and any descendant reparse
+            # point that escapes the managed root.
             path.resolve().relative_to(self.root.resolve())
         except Exception:
             raise AcquisitionError("acquisition_storage_failed") from None

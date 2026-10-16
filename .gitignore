@@ -304,3 +304,9 @@ visual_proxy_search_hooks.txt
 visual_strategy_v1.txt
 visual_strategy_v2.txt
 visual_strategy_v3.txt
+
+# ============================================================
+# LOCAL AUTONOMOUS DEVELOPMENT STATE
+# ============================================================
+
+.automation/
