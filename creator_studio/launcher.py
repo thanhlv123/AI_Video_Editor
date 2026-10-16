@@ -86,7 +86,14 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="Print a JSON prerequisite report.")
     group.add_argument("--smoke", action="store_true", help="Instantiate the GUI without showing it.")
+    group.add_argument("--doctor", action="store_true", help="Diagnose local render and GUI readiness.")
     args = parser.parse_args(argv)
+
+    if args.doctor:
+        from creator_studio.runtime_doctor import diagnose
+        report = diagnose()
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report["status"] == "ready" else 1
 
     if args.check:
         report = inspect_runtime()
