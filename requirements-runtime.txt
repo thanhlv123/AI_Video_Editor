@@ -1,0 +1,10 @@
+# M131: minimal supported Creator Studio runtime (offline local GUI).
+# Optional TTS/provider backends require separate provider-specific setup.
+PyQt6>=6.7
+requests>=2.32
+Pillow>=10.4
+python-docx>=1.1
+keyring>=25
+numpy>=1.26
+psutil>=6.0
+aiohttp>=3.10
