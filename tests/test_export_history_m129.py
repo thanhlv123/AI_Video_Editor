@@ -19,8 +19,10 @@ class ExportHistoryTests(unittest.TestCase):
                 "status": "completed", "output_path": str(video)
             }), encoding="utf-8")
             found = find_completed_exports(root)
-            self.assertEqual([entry.output_path for entry in found], [video.resolve()])
-            self.assertEqual(found[0].manifest_path, manifest)
+            self.assertEqual(len(found), 1)
+            # Windows may use both a long path and its 8.3 alias for the same file.
+            self.assertTrue(found[0].output_path.samefile(video))
+            self.assertTrue(found[0].manifest_path.samefile(manifest))
             self.assertEqual(video.read_bytes(), b"video")
 
 if __name__ == "__main__":
