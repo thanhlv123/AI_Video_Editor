@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: creator-studio-release-gate-${{ github.event.pull_request.head.sha || github.sha }}
+  group: creator-studio-release-gate-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -68,6 +68,11 @@ jobs:
         shell: pwsh
         timeout-minutes: 3
         run: python run_creator_studio.py --smoke
+
+      - name: M118 real offline FFmpeg acceptance
+        shell: pwsh
+        timeout-minutes: 4
+        run: python scripts/m118_render_acceptance.py --report .automation/m118_acceptance.json
 
       - name: Full automatic unittest suite
         shell: pwsh
