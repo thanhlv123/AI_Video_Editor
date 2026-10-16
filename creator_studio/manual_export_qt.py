@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
+from creator_studio.export_history import find_completed_exports
 from creator_studio.manual_export import find_ready_timelines
 from creator_studio.render_backend import RenderBackendCancelled, RenderCancellationToken
 from creator_studio.render_export import RenderExportService
@@ -102,6 +103,40 @@ class ManualExportPage(QWidget):
         self.status_label = QLabel("Hãy mở dự án và chọn timeline đã sẵn sàng.")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
+
+        history_title = QLabel("Lịch sử video đã xuất")
+        history_title.setObjectName("sectionTitle")
+        layout.addWidget(history_title)
+        history_description = QLabel(
+            "Chọn video đã xuất thành công để mở lại. "
+            "Lịch sử chỉ đọc và không thay đổi tệp của dự án."
+        )
+        history_description.setWordWrap(True)
+        layout.addWidget(history_description)
+
+        history_row = QHBoxLayout()
+        self.history_combo = QComboBox()
+        self.history_combo.setMinimumWidth(340)
+        self.history_combo.currentIndexChanged.connect(self._sync_history_controls)
+        self.history_refresh_button = QPushButton("Làm mới lịch sử")
+        self.history_refresh_button.clicked.connect(self._refresh_history)
+        history_row.addWidget(self.history_combo, 1)
+        history_row.addWidget(self.history_refresh_button)
+        layout.addLayout(history_row)
+
+        history_buttons = QHBoxLayout()
+        self.history_open_button = QPushButton("Mở video đã chọn")
+        self.history_open_button.clicked.connect(self._open_history_output)
+        self.history_folder_button = QPushButton("Mở thư mục video")
+        self.history_folder_button.clicked.connect(self._open_history_folder)
+        history_buttons.addWidget(self.history_open_button)
+        history_buttons.addWidget(self.history_folder_button)
+        history_buttons.addStretch()
+        layout.addLayout(history_buttons)
+
+        self.history_status_label = QLabel("Chưa có video đã xuất.")
+        self.history_status_label.setWordWrap(True)
+        layout.addWidget(self.history_status_label)
         layout.addStretch()
         self.refresh()
 
@@ -136,6 +171,65 @@ class ManualExportPage(QWidget):
                 "Không có timeline sẵn sàng. Hãy tạo video tự động trước."
                 if self._root is not None else "Hãy mở hoặc tạo dự án trước."
             )
+        self._refresh_history()
+
+    def _refresh_history(self, preferred_output: Path | None = None):
+        if self.is_exporting() and preferred_output is None:
+            return
+        previous = str(preferred_output) if preferred_output is not None else self.history_combo.currentData()
+        self.history_combo.clear()
+        if self._root is not None:
+            for entry in find_completed_exports(self._root):
+                self.history_combo.addItem(entry.output_path.name, str(entry.output_path))
+        index = self.history_combo.findData(previous)
+        if index >= 0:
+            self.history_combo.setCurrentIndex(index)
+        self.history_refresh_button.setEnabled(self._root is not None and not self.is_exporting())
+        self._sync_history_controls()
+
+    def _selected_history_output(self) -> Path | None:
+        if self._root is None:
+            return None
+        value = self.history_combo.currentData()
+        if not value:
+            return None
+        try:
+            selected = Path(str(value))
+            for entry in find_completed_exports(self._root):
+                if selected.samefile(entry.output_path):
+                    return entry.output_path
+        except (OSError, ValueError):
+            return None
+        return None
+
+    def _sync_history_controls(self, _index=None):
+        output = self._selected_history_output()
+        self.history_open_button.setEnabled(output is not None)
+        self.history_folder_button.setEnabled(output is not None)
+        self.history_combo.setEnabled(self.history_combo.count() > 0)
+        if output is None:
+            self.history_status_label.setText(
+                "Chưa có video đã xuất thành công trong dự án."
+                if self._root is not None else "Hãy mở hoặc tạo dự án trước."
+            )
+        else:
+            try:
+                size_mb = output.stat().st_size / (1024 * 1024)
+                self.history_status_label.setText(
+                    f"{output.name} · {size_mb:.1f} MB · {output.parent}"
+                )
+            except OSError:
+                self.history_status_label.setText("Video không còn tồn tại. Hãy làm mới lịch sử.")
+
+    def _open_history_output(self):
+        output = self._selected_history_output()
+        if output is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(output)))
+
+    def _open_history_folder(self):
+        output = self._selected_history_output()
+        if output is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(output.parent)))
 
     def _start(self):
         if self.is_exporting() or self._root is None:
@@ -158,6 +252,7 @@ class ManualExportPage(QWidget):
         self.timeline_combo.setEnabled(False)
         self.open_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
+        self.history_refresh_button.setEnabled(False)
 
         worker = ManualExportWorker(path, self._root, parent=self)
         self._worker = worker
@@ -183,6 +278,7 @@ class ManualExportPage(QWidget):
         self.progress_bar.setValue(100)
         self.status_label.setText(f"Đã xuất video: {self._output}")
         self.open_button.setEnabled(self._output.is_file())
+        self._refresh_history(preferred_output=self._output)
 
     def _on_error(self, message: str):
         self.status_label.setText(f"Xuất video thất bại: {message}")
