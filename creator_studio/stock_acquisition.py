@@ -482,6 +482,7 @@ class StockAcquisitionService:
         voice_asset_id: str,
         runtime_environment: dict[str, str] | None = None,
         progress_callback: Callable[[int, int, str, str], None] | None = None,
+        assign_assets: bool = True,
     ):
         self.project_root = Path(project_root).resolve()
         self.run_dir = Path(run_dir).resolve()
@@ -490,6 +491,10 @@ class StockAcquisitionService:
         self.voice_asset_id = str(voice_asset_id or "").strip()
         self.runtime_environment = dict(runtime_environment or {})
         self.progress_callback = progress_callback
+        # M110.5 targeted re-search needs to evaluate a replacement before
+        # changing the existing scene assignment.  Default stays True so all
+        # M110.2 callers preserve their original behavior.
+        self.assign_assets = bool(assign_assets)
 
     def run(self) -> StockAcquisitionReport:
         if not self.query_plan_path.is_file():
@@ -608,14 +613,15 @@ class StockAcquisitionService:
                 reused_asset_count += 1
             else:
                 new_asset_count += 1
-            assign_media_asset(
-                self.project_root,
-                self.voice_asset_id,
-                self.source_scenes_path,
-                scene_id,
-                asset.asset_id,
-            )
-            assigned_count += 1
+            if self.assign_assets:
+                assign_media_asset(
+                    self.project_root,
+                    self.voice_asset_id,
+                    self.source_scenes_path,
+                    scene_id,
+                    asset.asset_id,
+                )
+                assigned_count += 1
 
         unresolved = max(0, total - assigned_count)
         return StockAcquisitionReport(

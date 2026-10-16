@@ -601,6 +601,107 @@ class AutomationPipelineCoordinator:
         self.save()
         return self.state
 
+    def media_research_started(
+        self,
+        *,
+        target_count: int,
+    ) -> AutomationWorkflowState:
+        total = max(0, int(target_count or 0))
+        detail = (
+            f"M110.5 đang tự tìm lại stock cho {total} cảnh cần cải thiện."
+            if total
+            else "M110.5 đang kiểm tra fallback tư liệu."
+        )
+        self.state.mark_running("media_search", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_research_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        phase: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        phase_text = {
+            "searching": "Đang tìm lại stock",
+            "validated": "Đã tải stock mới",
+            "cached": "Đã dùng media cache",
+            "improved": "Đã thay bằng stock tốt hơn",
+            "render_asset_acquired": "Đã có render asset",
+            "fallback_preserved": "Giữ stock cũ làm fallback",
+            "still_unresolved": "Chưa có render asset",
+            "search_again": "Đang mở rộng truy vấn",
+        }.get(str(phase or "").strip(), str(phase or "Đang re-search"))
+        detail = f"{phase_text} · cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        self.state.mark_running("media_search", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def media_research_completed(
+        self,
+        *,
+        total_scene_count: int,
+        target_count: int,
+        improved_count: int,
+        acquired_count: int,
+        fallback_preserved_count: int,
+        unresolved_count: int,
+        manifest_filename: str = "media_research_manifest.json",
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        targets = max(0, int(target_count or 0))
+        improved = max(0, int(improved_count or 0))
+        acquired = max(0, int(acquired_count or 0))
+        preserved = max(0, int(fallback_preserved_count or 0))
+        unresolved = max(0, int(unresolved_count or 0))
+
+        if unresolved == 0:
+            self.state.mark_completed(
+                "media_search",
+                (
+                    f"M110.5 hoàn tất {targets} cảnh cần cải thiện · "
+                    f"tốt hơn {improved} · bổ sung asset {acquired} · giữ fallback {preserved}."
+                ),
+            )
+            self.state.mark_completed(
+                "media_assignment",
+                f"Đã có render-safe asset cho {total}/{total} cảnh tìm kiếm.",
+            )
+            self.state.message = (
+                f"Đã lưu {manifest_filename}. Tư liệu hình ảnh/video đã sẵn sàng; "
+                "bước tiếp theo là nhạc nền."
+            )
+        else:
+            self.state.mark_running(
+                "media_search",
+                (
+                    f"M110.5 đã re-search {targets} cảnh nhưng còn {unresolved} cảnh chưa có "
+                    "render-safe asset. M110.6 sẽ xử lý fallback cuối cùng."
+                ),
+                progress=99,
+            )
+            self.state.set_stage(
+                "media_assignment",
+                AutomationStageStatus.PENDING,
+                detail=f"Còn {unresolved} cảnh chưa có render-safe asset.",
+                progress=0,
+            )
+            self.state.message = f"Đã lưu {manifest_filename}. Chờ M110.6 Scene → Renderable Asset."
+
+        self.status = AutomationRunStatus.WAITING
+        self.save()
+        return self.state
+
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
         self.state.mark_failed(stage_key, message)
