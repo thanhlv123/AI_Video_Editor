@@ -12,6 +12,7 @@ from core.project import Project
 from core.timeline import Clip, Track
 
 from creator_studio.export_lock import ProjectExportBusy, project_export_lock
+from creator_studio.export_recovery import recover_interrupted_exports
 from creator_studio.output_integrity import verify_rendered_output
 
 from creator_studio.render_backend import (
@@ -156,6 +157,7 @@ class RenderExportService:
 
         try:
             with project_export_lock(root):
+                recover_interrupted_exports(timeline_path.parent, root)
                 return self._export_unlocked(
                     timeline_path,
                     root,
