@@ -1,0 +1,1 @@
+M123: Serialize exports for a project using a cross-process file lock. Reject overlapping renders before selecting output names. Regression tests cover lock contention and release.

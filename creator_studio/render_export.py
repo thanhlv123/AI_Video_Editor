@@ -11,6 +11,8 @@ from core.media import Media
 from core.project import Project
 from core.timeline import Clip, Track
 
+from creator_studio.export_lock import ProjectExportBusy, project_export_lock
+
 from creator_studio.render_backend import (
     RenderBackendCancelled,
     RenderBackendError,
@@ -124,6 +126,37 @@ class RenderExportService:
     # ==================================================
 
     def export(
+        self,
+        timeline_manifest_path,
+        project_root,
+        *,
+        progress_callback: Optional[RenderProgressCallback] = None,
+        cancel_token: Optional[RenderCancellationToken] = None,
+    ) -> RenderExportResult:
+        """Serialize exports per project across threads and processes."""
+        token = cancel_token if cancel_token is not None else RenderCancellationToken()
+        token.check()
+        timeline_path = Path(timeline_manifest_path).expanduser().resolve()
+        root = Path(project_root).expanduser().resolve()
+        if not timeline_path.is_file():
+            raise RenderExportError(
+                f"Timeline manifest does not exist: {timeline_path}"
+            )
+        if not root.is_dir():
+            raise RenderExportError(f"Project root does not exist: {root}")
+
+        try:
+            with project_export_lock(root):
+                return self._export_unlocked(
+                    timeline_path,
+                    root,
+                    progress_callback=progress_callback,
+                    cancel_token=token,
+                )
+        except ProjectExportBusy as exc:
+            raise RenderExportError(str(exc)) from exc
+
+    def _export_unlocked(
         self,
         timeline_manifest_path,
         project_root,

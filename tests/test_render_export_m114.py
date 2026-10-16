@@ -1181,5 +1181,22 @@ class RenderExportM114Tests(unittest.TestCase):
                     self.assertIn(expected_message, report["error"])
 
 
+    def test_parallel_export_fails_before_backend_and_recovers(self):
+        from creator_studio.export_lock import project_export_lock
+
+        backend = CapturingBackend()
+        service = RenderExportService(backend=backend)
+        with TemporaryDirectory() as directory:
+            root, manifest_path, _ = self._build_fixture(directory)
+            with project_export_lock(root):
+                with self.assertRaises(RenderExportError):
+                    service.export(manifest_path, root)
+                self.assertEqual(backend.requests, [])
+            result = service.export(manifest_path, root)
+            self.assertEqual(result.status, "completed")
+            self.assertEqual(result.output_path.name, "final_video_001.mp4")
+            self.assertEqual(len(backend.requests), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
