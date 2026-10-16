@@ -398,6 +398,33 @@ class AutomationRunnerM114Tests(unittest.TestCase):
         )
 
 
+    def test_preflight_blocks_missing_visual_before_backend_or_output(self):
+        with TemporaryDirectory() as directory:
+            coordinator, manifest_path = self._build_coordinator(directory)
+            missing_visual = (
+                Path(directory)
+                / "assets/videos/downloaded/video_one.mp4"
+            )
+            missing_visual.unlink()
+            backend = SuccessfulBackend()
+
+            with self.assertRaisesRegex(Exception, r"visual\\[0\\]"):
+                coordinator.run_render_export(
+                    timeline_manifest_path=manifest_path,
+                    backend=backend,
+                )
+
+            self.assertEqual(backend.requests, [])
+            self.assertEqual(coordinator.status, AutomationRunStatus.FAILED)
+            self.assertEqual(
+                coordinator.state.stage_status("render"),
+                AutomationStageStatus.FAILED,
+            )
+            self.assertIn("missing_media", coordinator.error)
+            self.assertFalse(
+                (coordinator.run_dir / "render_export_manifest.json").exists()
+            )
+
     def test_run_render_export_failure_marks_render_failed(self):
         with TemporaryDirectory() as directory:
 

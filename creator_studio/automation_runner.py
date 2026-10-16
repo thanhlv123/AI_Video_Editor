@@ -1147,6 +1147,9 @@ class AutomationPipelineCoordinator:
         from creator_studio.render_export import (
             RenderExportService,
         )
+        from creator_studio.render_readiness import (
+            require_render_ready,
+        )
 
         timeline_path = (
             Path(timeline_manifest_path)
@@ -1177,6 +1180,14 @@ class AutomationPipelineCoordinator:
                 progress_callback(event)
 
         try:
+            if cancel_token is not None:
+                cancel_token.check()
+            require_render_ready(
+                timeline_manifest_path=timeline_path,
+                project_root=self.project_root,
+            )
+            if cancel_token is not None:
+                cancel_token.check()
             result = service.export(
                 timeline_manifest_path=timeline_path,
                 project_root=self.project_root,
