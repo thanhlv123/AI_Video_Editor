@@ -702,6 +702,91 @@ class AutomationPipelineCoordinator:
         self.save()
         return self.state
 
+    def final_renderable_started(
+        self,
+        *,
+        total_scene_count: int = 0,
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        detail = "M110.6 đang chốt asset render cuối cùng cho từng cảnh."
+        if total:
+            detail += f" {total} cảnh."
+        self.state.mark_running("media_assignment", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def final_renderable_progress(
+        self,
+        *,
+        current: int,
+        total: int,
+        scene_id: str = "",
+        status: str = "",
+    ) -> AutomationWorkflowState:
+        total_i = max(1, int(total or 1))
+        current_i = max(0, min(total_i, int(current or 0)))
+        label = {
+            "ready": "Đã chốt render asset",
+            "unresolved": "Cảnh chưa sẵn sàng render",
+        }.get(str(status or "").strip(), "Đang xác minh render asset")
+        detail = f"{label} · cảnh {current_i}/{total_i}"
+        if scene_id:
+            detail += f" · {scene_id}"
+        self.state.mark_running("media_assignment", detail, progress=99)
+        self.state.message = detail
+        self.status = AutomationRunStatus.RUNNING
+        self.save()
+        return self.state
+
+    def final_renderable_completed(
+        self,
+        *,
+        total_scene_count: int,
+        ready_count: int,
+        unresolved_count: int,
+        video_count: int,
+        image_count: int,
+        manifest_filename: str = "final_renderable_assets.json",
+    ) -> AutomationWorkflowState:
+        total = max(0, int(total_scene_count or 0))
+        ready = max(0, int(ready_count or 0))
+        unresolved = max(0, int(unresolved_count or 0))
+        videos = max(0, int(video_count or 0))
+        images = max(0, int(image_count or 0))
+
+        if unresolved == 0 and ready == total:
+            self.state.mark_completed(
+                "media_search",
+                f"Tìm kiếm/xếp hạng tư liệu hoàn tất cho {total} cảnh.",
+            )
+            self.state.mark_completed(
+                "media_assignment",
+                f"M110.6 đã chốt {ready}/{total} render asset · video {videos} · ảnh {images}.",
+            )
+            self.state.message = (
+                f"Đã lưu {manifest_filename}. Tư liệu cuối cùng đã sẵn sàng; "
+                "bước tiếp theo là nhạc nền."
+            )
+        else:
+            self.state.mark_running(
+                "media_search",
+                f"M110.6 còn {unresolved}/{total} cảnh chưa có render asset hợp lệ.",
+                progress=99,
+            )
+            self.state.set_stage(
+                "media_assignment",
+                AutomationStageStatus.PENDING,
+                detail=f"Đã chốt {ready}/{total}; còn {unresolved} cảnh cần xử lý.",
+                progress=0,
+            )
+            self.state.message = f"Đã lưu {manifest_filename}. Cần xử lý các cảnh unresolved trước khi dựng video."
+
+        self.status = AutomationRunStatus.WAITING
+        self.save()
+        return self.state
+
     def fail(self, stage_key: str, detail: str) -> AutomationWorkflowState:
         message = str(detail or "Không rõ lỗi.").strip()
         self.state.mark_failed(stage_key, message)
