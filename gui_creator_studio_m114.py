@@ -176,6 +176,7 @@ from creator_studio.render_backend import (
     RenderBackendCancelled,
     RenderCancellationToken,
 )
+from creator_studio.manual_export_qt import ManualExportPage
 
 
 ROOT = Path(__file__).resolve().parent
@@ -6051,21 +6052,8 @@ class CreatorStudioWindow(QMainWindow):
             ),
         )
 
-        self._register_page(
-            "export",
-            ModulePage(
-                "Xuất video",
-                "Chọn thiết lập kết xuất và tạo video hoàn chỉnh bằng engine hiện có.",
-                "Khu vực xuất video",
-                "FFmpeg và bộ chạy sản xuất hiện tại vẫn hoạt động phía sau giao diện.",
-                [
-                    ("Định dạng", "Độ phân giải, FPS, codec và mức chất lượng."),
-                    ("Kiểm tra", "Kiểm tra mức độ sẵn sàng của dự án trước khi kết xuất."),
-                    ("Tiến trình", "Hiển thị tiến trình kết xuất và đường dẫn video đầu ra."),
-                ],
-                "Xuất video",
-            ),
-        )
+        self.export_page = ManualExportPage()
+        self._register_page("export", self.export_page)
 
         self.diagnostics_page = DiagnosticsPage(
             self.provider_diagnostics_view,
@@ -6262,6 +6250,9 @@ class CreatorStudioWindow(QMainWindow):
 
         if hasattr(self, "scene_page"):
             self.scene_page.set_project(manifest, manifest_path)
+
+        if hasattr(self, "export_page"):
+            self.export_page.set_project(manifest, manifest_path)
 
         if hasattr(
             self,
@@ -9936,6 +9927,15 @@ class CreatorStudioWindow(QMainWindow):
         )
 
     def closeEvent(self, event):
+        if hasattr(self, "export_page") and self.export_page.is_exporting():
+            QMessageBox.information(
+                self,
+                "Đang xuất video",
+                "Hãy chờ xuất video hoàn tất hoặc nhấn Hủy xuất trước khi đóng chương trình.",
+            )
+            event.ignore()
+            return
+
         if self.audio_preview_controller.is_active:
             self.audio_preview_controller.stop(delete_temp=True)
 
@@ -10010,6 +10010,8 @@ class CreatorStudioWindow(QMainWindow):
 
         if key == "scenes" and hasattr(self, "scene_page"):
             self.refresh_scene_asset_assignment()
+        if key == "export" and hasattr(self, "export_page"):
+            self.export_page.refresh()
 
         self.pages.setCurrentIndex(self.page_indexes[key])
 
