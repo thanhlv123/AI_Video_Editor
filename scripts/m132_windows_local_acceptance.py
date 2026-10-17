@@ -9,13 +9,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
+
+
+# Support both module execution and direct Windows script execution.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from creator_studio import launcher
 from creator_studio import runtime_doctor
 from scripts import m131_bootstrap
 
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_acceptance(*, ci_mode: bool = False) -> dict:
