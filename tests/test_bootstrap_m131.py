@@ -58,7 +58,8 @@ class BootstrapTests(unittest.TestCase):
                 self.assertEqual(bootstrap.install_environment(root), 0)
             self.assertEqual(len(commands), 2)
             self.assertEqual(commands[0][1:3], ["-m", "venv"])
-            self.assertEqual(commands[1][:4], [str(python), "-m", "pip", "install"])
+            self.assertEqual(Path(commands[1][0]).resolve(), python.resolve())
+            self.assertEqual(commands[1][1:4], ["-m", "pip", "install"])
             self.assertEqual(project.read_bytes(), b"important user data")
 
     def test_ready_when_packages_and_ffmpeg_are_present(self):
