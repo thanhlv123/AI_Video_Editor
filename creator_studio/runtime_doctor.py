@@ -49,6 +49,14 @@ def diagnose(*, project_root: Path | None = None, environ: Mapping[str, str] | N
     widgets = _module_available("PyQt6.QtWidgets")
     add("pyqt6_widgets", True, widgets, "Qt Widgets available" if widgets else "Qt Widgets unavailable",
         "Install PyQt6 in the Python environment used to launch Creator Studio.")
+    faster_whisper = _module_available("faster_whisper")
+    add(
+        "faster_whisper",
+        True,
+        faster_whisper,
+        "faster-whisper available" if faster_whisper else "faster-whisper unavailable",
+        "Install runtime dependencies with setup_creator_studio.cmd.",
+    )
     multimedia = _module_available("PyQt6.QtMultimedia")
     add("pyqt6_multimedia", False, multimedia,
         "Qt Multimedia available" if multimedia else "Audio/video preview may be unavailable",

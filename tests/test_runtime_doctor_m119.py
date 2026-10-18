@@ -26,6 +26,24 @@ class RuntimeDoctorTests(unittest.TestCase):
         self.assertEqual(report["required_failures"], [])
         self.assertEqual(report["format"], "creator_studio.runtime_doctor.v1")
 
+    def test_missing_faster_whisper_blocks_voice_pipeline(self):
+        listing = " V....D libx264 H.264\n A..... aac AAC\n"
+
+        def module_available(name):
+            return name != "faster_whisper"
+
+        with mock.patch.object(runtime_doctor.shutil, "which", side_effect=lambda name: f"C:/ffmpeg/bin/{name}.exe"):
+            with mock.patch.object(runtime_doctor, "_module_available", side_effect=module_available):
+                with mock.patch.object(
+                    runtime_doctor.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(returncode=0, stdout=listing, stderr=""),
+                ):
+                    report = runtime_doctor.diagnose(environ={})
+
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("faster_whisper", report["required_failures"])
+
     def test_missing_codecs_block_render(self):
         report = self._diagnose(encoders=False)
         self.assertEqual(report["status"], "blocked")

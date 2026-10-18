@@ -8,3 +8,5 @@ keyring>=25
 numpy>=1.26
 psutil>=6.0
 aiohttp>=3.10
+
+faster-whisper>=1.1

@@ -16,7 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_IMPORTS = (
     "PyQt6.QtWidgets", "requests", "PIL", "docx",
-    "keyring", "numpy", "psutil", "aiohttp",
+    "keyring", "numpy", "psutil", "aiohttp", "faster_whisper",
 )
 
 
