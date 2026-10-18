@@ -16,9 +16,10 @@ class RuntimeDoctorTests(unittest.TestCase):
         listing = " V....D libx264 H.264\n A..... aac AAC\n" if encoders else " V....D mpeg4 MPEG-4\n"
         with mock.patch.object(runtime_doctor.shutil, "which", side_effect=lambda name: f"C:/ffmpeg/bin/{name}.exe"):
             with mock.patch.object(runtime_doctor, "_module_available", return_value=True):
-                with mock.patch.object(runtime_doctor.subprocess, "run",
-                                       return_value=SimpleNamespace(returncode=0, stdout=listing, stderr="")):
-                    return runtime_doctor.diagnose(environ={})
+                with mock.patch.object(runtime_doctor, "_pyav_version_major", return_value=18):
+                    with mock.patch.object(runtime_doctor.subprocess, "run",
+                                           return_value=SimpleNamespace(returncode=0, stdout=listing, stderr="")):
+                        return runtime_doctor.diagnose(environ={})
 
     def test_required_programs_and_codecs_ready(self):
         report = self._diagnose()
@@ -34,15 +35,46 @@ class RuntimeDoctorTests(unittest.TestCase):
 
         with mock.patch.object(runtime_doctor.shutil, "which", side_effect=lambda name: f"C:/ffmpeg/bin/{name}.exe"):
             with mock.patch.object(runtime_doctor, "_module_available", side_effect=module_available):
-                with mock.patch.object(
-                    runtime_doctor.subprocess,
-                    "run",
-                    return_value=SimpleNamespace(returncode=0, stdout=listing, stderr=""),
-                ):
-                    report = runtime_doctor.diagnose(environ={})
+                with mock.patch.object(runtime_doctor, "_pyav_version_major", return_value=18):
+                    with mock.patch.object(
+                        runtime_doctor.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(returncode=0, stdout=listing, stderr=""),
+                    ):
+                        report = runtime_doctor.diagnose(environ={})
 
         self.assertEqual(report["status"], "blocked")
         self.assertIn("faster_whisper", report["required_failures"])
+
+    def test_pyav_19_blocks_voice_pipeline(self):
+        listing = " V....D libx264 H.264\n A..... aac AAC\n"
+        with mock.patch.object(runtime_doctor.shutil, "which", side_effect=lambda name: f"C:/ffmpeg/bin/{name}.exe"):
+            with mock.patch.object(runtime_doctor, "_module_available", return_value=True):
+                with mock.patch.object(runtime_doctor, "_pyav_version_major", return_value=19):
+                    with mock.patch.object(
+                        runtime_doctor.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(returncode=0, stdout=listing, stderr=""),
+                    ):
+                        report = runtime_doctor.diagnose(environ={})
+
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("pyav_faster_whisper_compat", report["required_failures"])
+
+    def test_pyav_18_allows_voice_pipeline(self):
+        listing = " V....D libx264 H.264\n A..... aac AAC\n"
+        with mock.patch.object(runtime_doctor.shutil, "which", side_effect=lambda name: f"C:/ffmpeg/bin/{name}.exe"):
+            with mock.patch.object(runtime_doctor, "_module_available", return_value=True):
+                with mock.patch.object(runtime_doctor, "_pyav_version_major", return_value=18):
+                    with mock.patch.object(
+                        runtime_doctor.subprocess,
+                        "run",
+                        return_value=SimpleNamespace(returncode=0, stdout=listing, stderr=""),
+                    ):
+                        report = runtime_doctor.diagnose(environ={})
+
+        self.assertEqual(report["status"], "ready")
+        self.assertNotIn("pyav_faster_whisper_compat", report["required_failures"])
 
     def test_missing_codecs_block_render(self):
         report = self._diagnose(encoders=False)

@@ -19,6 +19,14 @@ def _module_available(name: str) -> bool:
     except Exception:
         return False
 
+def _pyav_version_major() -> int | None:
+    try:
+        module = importlib.import_module("av")
+        version = str(getattr(module, "__version__", "") or "")
+        return int(version.split(".", 1)[0])
+    except Exception:
+        return None
+
 def _encoders(ffmpeg_path: str) -> tuple[bool, bool, str]:
     try:
         result = subprocess.run(
@@ -56,6 +64,23 @@ def diagnose(*, project_root: Path | None = None, environ: Mapping[str, str] | N
         faster_whisper,
         "faster-whisper available" if faster_whisper else "faster-whisper unavailable",
         "Install runtime dependencies with setup_creator_studio.cmd.",
+    )
+    pyav_major = _pyav_version_major() if faster_whisper else None
+    pyav_compatible = pyav_major is not None and pyav_major < 19
+    add(
+        "pyav_faster_whisper_compat",
+        True,
+        pyav_compatible,
+        (
+            f"PyAV {pyav_major}.x is compatible with the installed faster-whisper runtime"
+            if pyav_compatible
+            else (
+                "PyAV version could not be determined"
+                if pyav_major is None
+                else f"PyAV {pyav_major}.x is incompatible with the current faster-whisper runtime"
+            )
+        ),
+        "Run setup_creator_studio.cmd to install the supported PyAV version (av>=11,<19).",
     )
     multimedia = _module_available("PyQt6.QtMultimedia")
     add("pyqt6_multimedia", False, multimedia,
