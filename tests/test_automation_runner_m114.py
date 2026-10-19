@@ -398,6 +398,51 @@ class AutomationRunnerM114Tests(unittest.TestCase):
         )
 
 
+    def test_automation_quality_and_aspect_override_source_media_resolution(self):
+        with TemporaryDirectory() as directory:
+            coordinator, manifest_path = self._build_coordinator(directory)
+            coordinator.config.update(
+                {
+                    "aspect_ratio": "16:9",
+                    "quality": "1080p",
+                }
+            )
+
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["tracks"]["visuals"][0]["asset"]["width"] = 2048
+            payload["tracks"]["visuals"][0]["asset"]["height"] = 1080
+            self._write_json(manifest_path, payload)
+
+            backend = SuccessfulBackend()
+            coordinator.run_render_export(
+                timeline_manifest_path=manifest_path,
+                backend=backend,
+            )
+
+            request = backend.requests[0]
+            self.assertEqual(request.project.settings.width, 1920)
+            self.assertEqual(request.project.settings.height, 1080)
+            self.assertEqual(request.project.settings.fps, 30.0)
+
+    def test_automation_vertical_720p_maps_to_expected_resolution(self):
+        with TemporaryDirectory() as directory:
+            coordinator, manifest_path = self._build_coordinator(directory)
+            coordinator.config.update(
+                {
+                    "aspect_ratio": "9:16",
+                    "quality": "720p",
+                }
+            )
+            backend = SuccessfulBackend()
+            coordinator.run_render_export(
+                timeline_manifest_path=manifest_path,
+                backend=backend,
+            )
+
+            request = backend.requests[0]
+            self.assertEqual(request.project.settings.width, 720)
+            self.assertEqual(request.project.settings.height, 1280)
+
     def test_preflight_blocks_missing_visual_before_backend_or_output(self):
         with TemporaryDirectory() as directory:
             coordinator, manifest_path = self._build_coordinator(directory)

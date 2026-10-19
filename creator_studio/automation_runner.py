@@ -52,6 +52,18 @@ def _safe_json(value: Any) -> Any:
     return str(value)
 
 
+def _automation_output_settings(config: dict[str, Any]) -> tuple[int, int, float]:
+    aspect = str((config or {}).get("aspect_ratio") or "16:9").strip()
+    quality = str((config or {}).get("quality") or "1080p").strip().lower()
+
+    base = 720 if quality == "720p" else 1080
+    if aspect == "9:16":
+        return base, 1280 if base == 720 else 1920, 30.0
+    if aspect == "1:1":
+        return base, base, 30.0
+    return 1280 if base == 720 else 1920, base, 30.0
+
+
 @dataclass
 class AutomationPipelineCoordinator:
     """Persisted, UI-neutral coordinator for the one-click video workflow.
@@ -1161,12 +1173,16 @@ class AutomationPipelineCoordinator:
             timeline_manifest_filename=timeline_path.name,
         )
 
-        service = (
-            RenderExportService(
-                backend=backend
-            )
-            if backend is not None
-            else RenderExportService()
+        output_width, output_height, output_fps = _automation_output_settings(
+            self.config
+        )
+
+        service = RenderExportService(
+            backend=backend,
+            default_width=output_width,
+            default_height=output_height,
+            default_fps=output_fps,
+            prefer_default_output_settings=True,
         )
 
         def on_progress(event):

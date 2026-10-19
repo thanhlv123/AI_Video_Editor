@@ -94,6 +94,7 @@ class RenderExportService:
         default_height: int = 1080,
         default_fps: float = 30.0,
         verify_output: Optional[bool] = None,
+        prefer_default_output_settings: bool = False,
     ) -> None:
         self.backend = (
             backend
@@ -121,6 +122,10 @@ class RenderExportService:
         self.default_fps = self._positive_float(
             default_fps,
             "default_fps",
+        )
+
+        self.prefer_default_output_settings = bool(
+            prefer_default_output_settings
         )
 
         if not callable(
@@ -1259,6 +1264,11 @@ class RenderExportService:
                     "render_fps",
                 ),
             )
+
+        if self.prefer_default_output_settings:
+            width = width or self.default_width
+            height = height or self.default_height
+            fps = fps or self.default_fps
 
         first_visual = (
             visuals[0]
